@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Receptionist Central Hub - Online Therapy</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
+        .card { background: white; padding: 25px; border-radius: 8px; max-width: 1050px; margin: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h2 { color: #fd7e14; border-bottom: 2px solid #fd7e14; padding-bottom: 8px; }
+        button { border: none; padding: 8px 14px; border-radius: 4px; font-weight: bold; cursor: pointer; color: white; }
+        .btn-approve { background: #198754; }
+        .btn-reject { background: #dc3545; }
+        .btn-reschedule { background: #ffc107; color: #212529; }
+        .btn-refresh { background: #0d6efd; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background: #f1f3f5; }
+        .status { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85em; }
+        .PENDING { background: #fff3cd; color: #664d03; }
+        .CONFIRMED { background: #d1e7dd; color: #0f5132; }
+        .CANCELLED { background: #f8d7da; color: #842029; }
+        .RESCHEDULED { background: #cff4fc; color: #055160; }
+        .COMPLETED { background: #e2e3e5; color: #41464b; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Receptionist Triage & Scheduling Hub</h2>
+        <p>You act as the central middle-man approving client bookings, checking therapist shifts, and resolving scheduling conflicts.</p>
+
+        <button class="btn-refresh" onclick="loadAllData()">Refresh Master View</button>
+
+        <h3>Therapists Working Hours Overview</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Therapist ID</th>
+                    <th>Day</th>
+                    <th>Shift Hours</th>
+                    <th>Availability Status</th>
+                </tr>
+            </thead>
+            <tbody id="therapistSchedulesTable"></tbody>
+        </table>
+
+        <h3 style="margin-top: 30px;">All Client Appointment Requests</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Client</th>
+                    <th>Therapist</th>
+                    <th>Requested Date & Time</th>
+                    <th>Status</th>
+                    <th>Client Notes / Reschedule Reason</th>
+                    <th>Middle-Man Actions</th>
+                </tr>
+            </thead>
+            <tbody id="allAppointmentsTable"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080/api/v1';
+
+        async function loadAllData() {
+            // Load Schedules
+            const schedRes = await fetch(API + '/schedules');
+            const schedules = await schedRes.json();
+            const schedTbody = document.getElementById('therapistSchedulesTable');
+            schedTbody.innerHTML = '';
+            schedules.forEach(s => {
+                schedTbody.innerHTML += '<tr>' +
+                    '<td>Therapist #' + s.therapistId + '</td>' +
+                    '<td>' + s.dayOfWeek + '</td>' +
+                    '<td>' + s.startTime + ' - ' + s.endTime + '</td>' +
+                    '<td>' + (s.unavailabilityReason ? '<span style="color:red;">Unavailable: ' + s.unavailabilityReason + '</span>' : '<span style="color:green;">Available</span>') + '</td>' +
+                '</tr>';
+            });
+
+            // Load Appointments
+            const appRes = await fetch(API + '/appointments');
+            const appointments = await appRes.json();
+            const appTbody = document.getElementById('allAppointmentsTable');
+            appTbody.innerHTML = '';
+            appointments.forEach(a => {
+                appTbody.innerHTML += '<tr>' +
+                    '<td>#' + a.id + '</td>' +
+                    '<td>Client #' + a.clientId + '</td>' +
+                    '<td>Therapist #' + a.therapistId + '</td>' +
+                    '<td>' + a.appointmentDateTime + '</td>' +
+                    '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
+                    '<td>' + (a.notes || '') + (a.rescheduleReason ? '<br><i>Reason: ' + a.rescheduleReason + '</i>' : '') + '</td>' +
+                    '<td>' +
+                        '<button class="btn-approve" onclick="updateStatus(' + a.id + ', \'CONFIRMED\')">Approve</button> ' +
+                        '<button class="btn-reject" onclick="updateStatus(' + a.id + ', \'CANCELLED\')">Reject</button> ' +
+                        '<button class="btn-reschedule" onclick="rescheduleAppt(' + a.id + ')">Reschedule</button>' +
+                    '</td>' +
+                '</tr>';
+            });
+        }
+
+        async function updateStatus(id, status) {
+            await fetch(API + '/appointments/' + id + '/status', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: status, receptionistId: '200' })
+            });
+            loadAllData();
+        }
+
+        async function rescheduleAppt(id) {
+            const newTime = prompt("Enter new Date & Time (e.g. 2026-09-02T14:00:00):");
+            if (!newTime) return;
+            const reason = prompt("Enter reason for rescheduling to notify Client & Therapist:");
+
+            const res = await fetch(API + '/appointments/' + id + '/reschedule', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ newDateTime: newTime, reason: reason })
+            });
+
+            if (!res.ok) {
+                const err = await res.text();
+                alert("Reschedule Failed: " + err);
+            }
+            loadAllData();
+        }
+
+        loadAllData();
+    </script>
+</body>
+</html>

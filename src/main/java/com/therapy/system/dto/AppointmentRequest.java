@@ -1,14 +1,10 @@
 package com.therapy.system.dto;
 
-import java.time.LocalDateTime;
-
 public class AppointmentRequest {
     private Long clientId;
     private Long therapistId;
-    private LocalDateTime appointmentDateTime;
-    private String notes;
-
-    public AppointmentRequest() {}
+    private String appointmentTime; // Accepts "YYYY-MM-DDTHH:mm"
+    private String reason;
 
     public Long getClientId() { return clientId; }
     public void setClientId(Long clientId) { this.clientId = clientId; }
@@ -16,9 +12,9 @@ public class AppointmentRequest {
     public Long getTherapistId() { return therapistId; }
     public void setTherapistId(Long therapistId) { this.therapistId = therapistId; }
 
-    public LocalDateTime getAppointmentDateTime() { return appointmentDateTime; }
-    public void setAppointmentDateTime(LocalDateTime appointmentDateTime) { this.appointmentDateTime = appointmentDateTime; }
+    public String getAppointmentTime() { return appointmentTime; }
+    public void setAppointmentTime(String appointmentTime) { this.appointmentTime = appointmentTime; }
 
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public String getReason() { return reason; }
+    public void setReason(String reason) { this.reason = reason; }
 }

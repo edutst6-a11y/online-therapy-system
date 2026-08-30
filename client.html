@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Client Portal - Online Therapy</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #eef2f5; }
@@ -10,6 +11,7 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: 600; margin-bottom: 5px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        input[readonly] { background-color: #e9ecef; cursor: not-allowed; }
         button { background: #0d6efd; color: white; border: none; padding: 10px 18px; border-radius: 4px; font-weight: bold; cursor: pointer; }
         button:hover { background: #0b5ed7; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -30,7 +32,7 @@
         <form id="bookingForm">
             <div class="form-group">
                 <label>Your Client ID:</label>
-                <input type="number" id="clientId" value="101" required />
+                <input type="number" id="clientId" placeholder="Loading ID..." required />
             </div>
             <div class="form-group">
                 <label>Select Therapist ID:</label>
@@ -66,7 +68,28 @@
     </div>
 
     <script>
-        const API = 'http://localhost:8080/api/v1';
+        const API = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'http://localhost:8080/api/v1'
+            : `${window.location.origin}/api/v1`;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const user = JSON.parse(localStorage.getItem('user'));
+            
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Auto-fill logged-in client ID if on client portal
+            const clientIdInput = document.getElementById('clientId');
+            if (clientIdInput && user.id) {
+                clientIdInput.value = user.id;
+                clientIdInput.readOnly = true;
+            }
+
+            // Load bookings automatically for logged-in user
+            loadMyBookings();
+        });
 
         document.getElementById('bookingForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -80,40 +103,50 @@
                 notes: document.getElementById('appNotes').value
             };
 
-            const res = await fetch(API + '/appointments', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            try {
+                const res = await fetch(API + '/appointments', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-            if (res.ok) {
-                msg.innerHTML = '<span style="color:green; font-weight:bold;">Request sent to Receptionist!</span>';
-                loadMyBookings();
-            } else {
-                const err = await res.text();
-                msg.innerHTML = '<span style="color:red; font-weight:bold;">Error: ' + err + '</span>';
+                if (res.ok) {
+                    msg.innerHTML = '<span style="color:green; font-weight:bold;">Request sent to Receptionist!</span>';
+                    loadMyBookings();
+                } else {
+                    const err = await res.text();
+                    msg.innerHTML = '<span style="color:red; font-weight:bold;">Error: ' + err + '</span>';
+                }
+            } catch (error) {
+                msg.innerHTML = '<span style="color:red; font-weight:bold;">Connection error. Please try again.</span>';
             }
         });
 
         async function loadMyBookings() {
             const cId = document.getElementById('clientId').value;
-            const res = await fetch(API + '/appointments/client/' + cId);
-            const data = await res.json();
-            const tbody = document.getElementById('myBookings');
-            tbody.innerHTML = '';
-            
-            data.forEach(a => {
-                tbody.innerHTML += '<tr>' +
-                    '<td>#' + a.id + '</td>' +
-                    '<td>Therapist #' + a.therapistId + '</td>' +
-                    '<td>' + a.appointmentDateTime + '</td>' +
-                    '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
-                    '<td>' + (a.rescheduleReason ? '<b>Rescheduled Note:</b> ' + a.rescheduleReason : (a.notes || 'N/A')) + '</td>' +
-                '</tr>';
-            });
-        }
+            if (!cId) return;
 
-        loadMyBookings();
+            try {
+                const res = await fetch(API + '/appointments/client/' + cId);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const tbody = document.getElementById('myBookings');
+                tbody.innerHTML = '';
+                
+                data.forEach(a => {
+                    tbody.innerHTML += '<tr>' +
+                        '<td>#' + a.id + '</td>' +
+                        '<td>Therapist #' + a.therapistId + '</td>' +
+                        '<td>' + a.appointmentDateTime + '</td>' +
+                        '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
+                        '<td>' + (a.rescheduleReason ? '<b>Rescheduled Note:</b> ' + a.rescheduleReason : (a.notes || 'N/A')) + '</td>' +
+                    '</tr>';
+                });
+            } catch (error) {
+                console.error("Failed to load bookings:", error);
+            }
+        }
     </script>
 </body>
 </html>

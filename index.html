@@ -119,12 +119,13 @@
         .btn-approve { background: var(--success); }
         .btn-reject { background: var(--danger); }
         .btn-reschedule { background: var(--warning); color: #212529; }
+        .btn-refresh { background: var(--primary); color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
     <nav class="navbar">
-        <h1>?? MindCare Health Platform</h1>
+        <h1>🩺 MindCare Health Platform</h1>
         <div class="nav-links">
             <button class="nav-tab active" onclick="switchView('homeTab', this)">Home Dashboard</button>
             <button class="nav-tab" onclick="switchView('clientTab', this)">Client Portal</button>
@@ -144,12 +145,12 @@
 
             <div class="grid-2">
                 <div style="background: #eef2f5; padding: 20px; border-radius: 8px;">
-                    <h3>?? Client Services</h3>
+                    <h3>👤 Client Services</h3>
                     <p>Request consultations with licensed therapists, track real-time booking statuses, and view schedule updates.</p>
                     <button style="background: var(--accent); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;" onclick="document.querySelectorAll('.nav-tab')[1].click()">Go to Client Portal</button>
                 </div>
                 <div style="background: #eef2f5; padding: 20px; border-radius: 8px;">
-                    <h3>?? Therapist Workspace</h3>
+                    <h3>👨‍⚕️ Therapist Workspace</h3>
                     <p>Define weekly shift availability, view assigned patient loads, and record session completions.</p>
                     <button style="background: var(--success); color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;" onclick="document.querySelectorAll('.nav-tab')[2].click()">Go to Therapist Workspace</button>
                 </div>
@@ -183,7 +184,7 @@
             <div id="clientMsg" style="margin-top: 15px;"></div>
 
             <h3 style="margin-top: 30px;">My Consultations</h3>
-            <button onclick="loadClientAppointments()">Refresh My Requests</button>
+            <button class="btn-refresh" onclick="loadClientAppointments()">Refresh My Requests</button>
             <table>
                 <thead>
                     <tr><th>ID</th><th>Therapist ID</th><th>Date & Time</th><th>Status</th><th>Notes / Reschedule Reason</th></tr>
@@ -223,7 +224,7 @@
                 </div>
                 <div>
                     <h3>My Current Working Hours</h3>
-                    <button onclick="loadTherapistSchedules()">Refresh Shift Schedule</button>
+                    <button class="btn-refresh" onclick="loadTherapistSchedules()">Refresh Shift Schedule</button>
                     <table>
                         <thead><tr><th>Day</th><th>Hours</th><th>Note</th></tr></thead>
                         <tbody id="therapistScheduleTable"></tbody>
@@ -232,7 +233,7 @@
             </div>
 
             <h3 style="margin-top: 30px;">Assigned Patient Appointments</h3>
-            <button onclick="loadTherapistAppointments()">Refresh Patients</button>
+            <button class="btn-refresh" onclick="loadTherapistAppointments()">Refresh Patients</button>
             <table>
                 <thead><tr><th>Appt ID</th><th>Client ID</th><th>Date & Time</th><th>Status</th><th>Client Notes</th><th>Action</th></tr></thead>
                 <tbody id="therapistAppTable"></tbody>
@@ -243,7 +244,7 @@
         <div id="receptionistTab" class="card">
             <h2>Receptionist Triage & Schedule Management</h2>
             <p>Review incoming client booking requests against therapist schedules to approve, cancel, or reschedule sessions.</p>
-            <button class="btn-submit" style="width: auto; margin-bottom: 15px;" onclick="loadReceptionistData()">Refresh Master Queue</button>
+            <button class="btn-refresh" style="margin-bottom: 15px;" onclick="loadReceptionistData()">Refresh Master Queue</button>
 
             <h3>All System Appointments</h3>
             <table>
@@ -257,9 +258,9 @@
     </div>
 
     <script>
-        const API = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
-            ? 'http://localhost:8080/api/v1' 
-            : 'https://YOUR-RAILWAY-BACKEND-URL.up.railway.app/api/v1';
+        const API = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? '/api/v1' 
+            : `${window.location.origin}/api/v1`;
 
         function switchView(tabId, btn) {
             document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
@@ -272,16 +273,29 @@
             if (tabId === 'receptionistTab') loadReceptionistData();
         }
 
+        // Helper to extract JSON error message
+        async function getErrorMessage(res) {
+            try {
+                const data = await res.json();
+                return data.error || data.message || 'An unknown error occurred.';
+            } catch {
+                return await res.text();
+            }
+        }
+
         // Client Form Submit
         document.getElementById('clientBookingForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const msg = document.getElementById('clientMsg');
+            msg.innerHTML = '<i>Submitting request...</i>';
+
             const payload = {
                 clientId: parseInt(document.getElementById('cClientId').value),
                 therapistId: parseInt(document.getElementById('cTherapistId').value),
                 appointmentDateTime: document.getElementById('cAppTime').value,
                 notes: document.getElementById('cNotes').value
             };
+
             const res = await fetch(API + '/appointments', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -292,14 +306,15 @@
                 msg.innerHTML = '<b style="color:var(--success);">Request sent successfully to Receptionist queue!</b>';
                 loadClientAppointments();
             } else {
-                const txt = await res.text();
-                msg.innerHTML = '<b style="color:var(--danger);">Error: ' + txt + '</b>';
+                const errText = await getErrorMessage(res);
+                msg.innerHTML = '<b style="color:var(--danger);">Error: ' + errText + '</b>';
             }
         });
 
         async function loadClientAppointments() {
             const cId = document.getElementById('cClientId').value;
             const res = await fetch(API + '/appointments/client/' + cId);
+            if (!res.ok) return;
             const data = await res.json();
             const tbody = document.getElementById('clientAppTable');
             tbody.innerHTML = '';
@@ -335,6 +350,7 @@
         async function loadTherapistSchedules() {
             const tId = document.getElementById('tId').value;
             const res = await fetch(API + '/schedules/therapist/' + tId);
+            if (!res.ok) return;
             const data = await res.json();
             const tbody = document.getElementById('therapistScheduleTable');
             tbody.innerHTML = '';
@@ -346,6 +362,7 @@
         async function loadTherapistAppointments() {
             const tId = document.getElementById('tId').value;
             const res = await fetch(API + '/appointments/therapist/' + tId);
+            if (!res.ok) return;
             const data = await res.json();
             const tbody = document.getElementById('therapistAppTable');
             tbody.innerHTML = '';
@@ -359,17 +376,19 @@
         }
 
         async function completeSession(id) {
-            await fetch(API + '/appointments/' + id + '/status', {
+            const res = await fetch(API + '/appointments/' + id + '/status', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: 'COMPLETED' })
             });
+            if (!res.ok) alert(await getErrorMessage(res));
             loadTherapistAppointments();
         }
 
         // Receptionist Data Load
         async function loadReceptionistData() {
             const res = await fetch(API + '/appointments');
+            if (!res.ok) return;
             const data = await res.json();
             const tbody = document.getElementById('receptionistAppTable');
             tbody.innerHTML = '';
@@ -388,25 +407,30 @@
         }
 
         async function updateStatus(id, status) {
-            await fetch(API + '/appointments/' + id + '/status', {
+            const res = await fetch(API + '/appointments/' + id + '/status', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: status, receptionistId: '200' })
             });
+            if (!res.ok) alert(await getErrorMessage(res));
             loadReceptionistData();
         }
 
         async function rescheduleAppt(id) {
-            const newTime = prompt("Enter new Date & Time (e.g. 2026-09-05T14:00:00):");
+            const newTime = prompt("Enter new Date & Time (e.g. 2026-09-05T14:00):");
             if (!newTime) return;
             const reason = prompt("Enter reason for rescheduling:");
 
-            await fetch(API + '/appointments/' + id + '/reschedule', {
+            const res = await fetch(API + '/appointments/' + id + '/reschedule', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ newDateTime: newTime, reason: reason })
             });
-            loadReceptionistData();
+            if (!res.ok) {
+                alert(await getErrorMessage(res));
+            } else {
+                loadReceptionistData();
+            }
         }
     </script>
 </body>

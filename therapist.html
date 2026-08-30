@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Therapist Dashboard - Online Therapy</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f4f6f9; }
@@ -11,6 +12,7 @@
         .form-group { margin-bottom: 15px; }
         label { display: block; font-weight: 600; margin-bottom: 5px; }
         input, select, textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        input[readonly] { background-color: #e9ecef; cursor: not-allowed; }
         button { background: #198754; color: white; border: none; padding: 10px 18px; border-radius: 4px; font-weight: bold; cursor: pointer; }
         button:hover { background: #157347; }
         .btn-complete { background: #0d6efd; }
@@ -35,7 +37,7 @@
                 <form id="scheduleForm">
                     <div class="form-group">
                         <label>Therapist ID:</label>
-                        <input type="number" id="tId" value="100" required />
+                        <input type="number" id="tId" placeholder="Loading ID..." required />
                     </div>
                     <div class="form-group">
                         <label>Day of Week:</label>
@@ -58,6 +60,7 @@
                     </div>
                     <button type="submit">Publish Availability Schedule</button>
                 </form>
+                <div id="scheduleMsg" style="margin-top: 10px;"></div>
             </div>
 
             <div>
@@ -96,10 +99,35 @@
     </div>
 
     <script>
-        const API = 'http://localhost:8080/api/v1';
+        const API = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'http://localhost:8080/api/v1'
+            : `${window.location.origin}/api/v1`;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const user = JSON.parse(localStorage.getItem('user'));
+            
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            // Auto-fill logged-in therapist ID
+            const tIdInput = document.getElementById('tId');
+            if (tIdInput && user.id) {
+                tIdInput.value = user.id;
+                tIdInput.readOnly = true;
+            }
+
+            // Initial data fetch for the authenticated therapist
+            loadSchedules();
+            loadTherapistAppointments();
+        });
 
         document.getElementById('scheduleForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            const msg = document.getElementById('scheduleMsg');
+            msg.innerHTML = 'Publishing schedule...';
+
             const payload = {
                 therapistId: parseInt(document.getElementById('tId').value),
                 dayOfWeek: document.getElementById('dayOfWeek').value,
@@ -109,60 +137,94 @@
                 unavailabilityReason: document.getElementById('reason').value
             };
 
-            await fetch(API + '/schedules', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            loadSchedules();
+            try {
+                const res = await fetch(API + '/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (res.ok) {
+                    msg.innerHTML = '<span style="color:green; font-weight:bold;">Schedule published!</span>';
+                    loadSchedules();
+                } else {
+                    const err = await res.text();
+                    msg.innerHTML = '<span style="color:red; font-weight:bold;">Error: ' + err + '</span>';
+                }
+            } catch (error) {
+                msg.innerHTML = '<span style="color:red; font-weight:bold;">Network error publishing schedule.</span>';
+            }
         });
 
         async function loadSchedules() {
             const tId = document.getElementById('tId').value;
-            const res = await fetch(API + '/schedules/therapist/' + tId);
-            const data = await res.json();
-            const tbody = document.getElementById('scheduleList');
-            tbody.innerHTML = '';
-            data.forEach(s => {
-                tbody.innerHTML += '<tr>' +
-                    '<td>' + s.dayOfWeek + '</td>' +
-                    '<td>' + s.startTime + ' - ' + s.endTime + '</td>' +
-                    '<td>' + (s.unavailabilityReason || 'Available') + '</td>' +
-                '</tr>';
-            });
+            if (!tId) return;
+
+            try {
+                const res = await fetch(API + '/schedules/therapist/' + tId);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const tbody = document.getElementById('scheduleList');
+                tbody.innerHTML = '';
+                data.forEach(s => {
+                    tbody.innerHTML += '<tr>' +
+                        '<td>' + s.dayOfWeek + '</td>' +
+                        '<td>' + s.startTime + ' - ' + s.endTime + '</td>' +
+                        '<td>' + (s.unavailabilityReason || 'Available') + '</td>' +
+                    '</tr>';
+                });
+            } catch (error) {
+                console.error("Failed to load therapist schedule:", error);
+            }
         }
 
         async function loadTherapistAppointments() {
             const tId = document.getElementById('tId').value;
-            const res = await fetch(API + '/appointments/therapist/' + tId);
-            const data = await res.json();
-            const tbody = document.getElementById('therapistAppointments');
-            tbody.innerHTML = '';
-            data.forEach(a => {
-                tbody.innerHTML += '<tr>' +
-                    '<td>#' + a.id + '</td>' +
-                    '<td>Client #' + a.clientId + '</td>' +
-                    '<td>' + a.appointmentDateTime + '</td>' +
-                    '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
-                    '<td>' + (a.notes || 'None') + '</td>' +
-                    '<td>' +
-                        (a.status === 'CONFIRMED' ? '<button class="btn-complete" onclick="markCompleted(' + a.id + ')">Mark Completed</button>' : 'N/A') +
-                    '</td>' +
-                '</tr>';
-            });
+            if (!tId) return;
+
+            try {
+                const res = await fetch(API + '/appointments/therapist/' + tId);
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const tbody = document.getElementById('therapistAppointments');
+                tbody.innerHTML = '';
+                data.forEach(a => {
+                    tbody.innerHTML += '<tr>' +
+                        '<td>#' + a.id + '</td>' +
+                        '<td>Client #' + a.clientId + '</td>' +
+                        '<td>' + a.appointmentDateTime + '</td>' +
+                        '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
+                        '<td>' + (a.notes || 'None') + '</td>' +
+                        '<td>' +
+                            (a.status === 'CONFIRMED' ? '<button class="btn-complete" onclick="markCompleted(' + a.id + ')">Mark Completed</button>' : 'N/A') +
+                        '</td>' +
+                    '</tr>';
+                });
+            } catch (error) {
+                console.error("Failed to load therapist appointments:", error);
+            }
         }
 
         async function markCompleted(id) {
-            await fetch(API + '/appointments/' + id + '/status', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'COMPLETED' })
-            });
-            loadTherapistAppointments();
-        }
+            try {
+                const res = await fetch(API + '/appointments/' + id + '/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'COMPLETED' })
+                });
 
-        loadSchedules();
-        loadTherapistAppointments();
+                if (res.ok) {
+                    loadTherapistAppointments();
+                } else {
+                    const err = await res.text();
+                    alert("Failed to complete appointment: " + err);
+                }
+            } catch (error) {
+                alert("Network error updating status.");
+            }
+        }
     </script>
 </body>
 </html>

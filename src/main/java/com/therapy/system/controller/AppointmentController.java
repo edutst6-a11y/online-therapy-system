@@ -2,12 +2,12 @@ package com.therapy.system.controller;
 
 import com.therapy.system.model.Appointment;
 import com.therapy.system.repository.AppointmentRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 
@@ -16,45 +16,65 @@ import java.util.Map;
 @CrossOrigin(origins = "*")
 public class AppointmentController {
 
-    @Autowired
-    private AppointmentRepository appointmentRepository;
+    private final AppointmentRepository appointmentRepository;
+
+    public AppointmentController(AppointmentRepository appointmentRepository) {
+        this.appointmentRepository = appointmentRepository;
+    }
 
     @PostMapping
     public ResponseEntity<?> createAppointment(@RequestBody Appointment appointment) {
-        boolean isBooked = appointmentRepository
-            .existsByTherapistIdAndAppointmentDateTimeAndStatusNot(
-                appointment.getTherapistId(),
-                appointment.getAppointmentDateTime(),
-                "CANCELLED"
-            );
+        try {
+            // Validate required fields
+            if (appointment.getTherapistId() == null || appointment.getClientId() == null || appointment.getAppointmentDateTime() == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Missing required fields: clientId, therapistId, and appointmentDateTime are mandatory."));
+            }
 
-        if (isBooked) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body("Therapist is already booked for this selected time slot.");
+            // Check if therapist already has an active booking at the specified slot
+            boolean isBooked = appointmentRepository
+                    .existsByTherapistIdAndAppointmentDateTimeAndStatusNot(
+                            appointment.getTherapistId(),
+                            appointment.getAppointmentDateTime(),
+                            "CANCELLED"
+                    );
+
+            if (isBooked) {
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                        .body(Map.of("error", "Therapist is already booked for this selected time slot."));
+            }
+
+            if (appointment.getStatus() == null || appointment.getStatus().isBlank()) {
+                appointment.setStatus("PENDING");
+            }
+
+            Appointment saved = appointmentRepository.save(appointment);
+            return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to process appointment booking: " + e.getMessage()));
         }
-
-        appointment.setStatus("PENDING");
-        Appointment saved = appointmentRepository.save(appointment);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @GetMapping
-    public List<Appointment> getAllAppointments() {
-        return appointmentRepository.findAll();
+    public ResponseEntity<List<Appointment>> getAllAppointments() {
+        return ResponseEntity.ok(appointmentRepository.findAll());
     }
 
     @GetMapping("/client/{clientId}")
-    public List<Appointment> getClientAppointments(@PathVariable Long clientId) {
-        return appointmentRepository.findAll().stream()
-                .filter(a -> a.getClientId().equals(clientId))
+    public ResponseEntity<List<Appointment>> getClientAppointments(@PathVariable Long clientId) {
+        List<Appointment> clientAppointments = appointmentRepository.findAll().stream()
+                .filter(a -> a.getClientId() != null && a.getClientId().equals(clientId))
                 .toList();
+        return ResponseEntity.ok(clientAppointments);
     }
 
     @GetMapping("/therapist/{therapistId}")
-    public List<Appointment> getTherapistAppointments(@PathVariable Long therapistId) {
-        return appointmentRepository.findAll().stream()
-                .filter(a -> a.getTherapistId().equals(therapistId))
+    public ResponseEntity<List<Appointment>> getTherapistAppointments(@PathVariable Long therapistId) {
+        List<Appointment> therapistAppointments = appointmentRepository.findAll().stream()
+                .filter(a -> a.getTherapistId() != null && a.getTherapistId().equals(therapistId))
                 .toList();
+        return ResponseEntity.ok(therapistAppointments);
     }
 
     @PatchMapping("/{id}/status")
@@ -62,16 +82,24 @@ public class AppointmentController {
             @PathVariable Long id, 
             @RequestBody Map<String, String> request) {
         
-        return appointmentRepository.findById(id).map(app -> {
-            if (request.containsKey("status")) {
-                app.setStatus(request.get("status").toUpperCase());
-            }
-            if (request.containsKey("receptionistId")) {
-                app.setReceptionistId(Long.parseLong(request.get("receptionistId")));
-            }
-            appointmentRepository.save(app);
-            return ResponseEntity.ok(app);
-        }).orElse(ResponseEntity.notFound().build());
+        try {
+            return appointmentRepository.findById(id).map(app -> {
+                if (request.containsKey("status") && request.get("status") != null) {
+                    app.setStatus(request.get("status").toUpperCase());
+                }
+                if (request.containsKey("receptionistId") && request.get("receptionistId") != null) {
+                    try {
+                        app.setReceptionistId(Long.parseLong(request.get("receptionistId")));
+                    } catch (NumberFormatException ignored) {}
+                }
+                Appointment saved = appointmentRepository.save(app);
+                return ResponseEntity.ok(saved);
+            }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Appointment not found with ID: " + id)));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "Failed to update appointment status: " + e.getMessage()));
+        }
     }
 
     @PatchMapping("/{id}/reschedule")
@@ -79,24 +107,43 @@ public class AppointmentController {
             @PathVariable Long id, 
             @RequestBody Map<String, String> request) {
 
-        return appointmentRepository.findById(id).map(app -> {
-            LocalDateTime newDateTime = LocalDateTime.parse(request.get("newDateTime"));
-            String reason = request.getOrDefault("reason", "Rescheduled by clinic staff");
-
-            boolean isBooked = appointmentRepository
-                .existsByTherapistIdAndAppointmentDateTimeAndStatusNot(
-                    app.getTherapistId(), newDateTime, "CANCELLED");
-
-            if (isBooked) {
-                return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("Target time slot is unavailable.");
+        try {
+            if (!request.containsKey("newDateTime") || request.get("newDateTime") == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Missing required field: newDateTime"));
             }
 
-            app.setAppointmentDateTime(newDateTime);
-            app.setStatus("RESCHEDULED");
-            app.setRescheduleReason(reason);
-            appointmentRepository.save(app);
-            return ResponseEntity.ok(app);
-        }).orElse(ResponseEntity.notFound().build());
+            LocalDateTime newDateTime;
+            try {
+                newDateTime = LocalDateTime.parse(request.get("newDateTime"));
+            } catch (DateTimeParseException e) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                        .body(Map.of("error", "Invalid date format. Use ISO format (YYYY-MM-DDTHH:mm)."));
+            }
+
+            String reason = request.getOrDefault("reason", "Rescheduled by clinic staff");
+
+            return appointmentRepository.findById(id).map(app -> {
+                boolean isBooked = appointmentRepository
+                        .existsByTherapistIdAndAppointmentDateTimeAndStatusNot(
+                                app.getTherapistId(), newDateTime, "CANCELLED");
+
+                if (isBooked) {
+                    return ResponseEntity.status(HttpStatus.CONFLICT)
+                            .body(Map.of("error", "Target time slot is unavailable."));
+                }
+
+                app.setAppointmentDateTime(newDateTime);
+                app.setStatus("RESCHEDULED");
+                app.setRescheduleReason(reason);
+                Appointment saved = appointmentRepository.save(app);
+                return ResponseEntity.ok(saved);
+            }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Map.of("error", "Appointment not found with ID: " + id)));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to reschedule appointment: " + e.getMessage()));
+        }
     }
 }

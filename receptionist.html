@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receptionist Central Hub - Online Therapy</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; }
@@ -61,52 +62,86 @@
     </div>
 
     <script>
-        const API = 'http://localhost:8080/api/v1';
+        const API = window.location.origin.includes('localhost') || window.location.origin.includes('127.0.0.1')
+            ? 'http://localhost:8080/api/v1'
+            : `${window.location.origin}/api/v1`;
+
+        let currentUser = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            currentUser = JSON.parse(localStorage.getItem('user'));
+            
+            if (!currentUser) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            loadAllData();
+        });
 
         async function loadAllData() {
-            // Load Schedules
-            const schedRes = await fetch(API + '/schedules');
-            const schedules = await schedRes.json();
-            const schedTbody = document.getElementById('therapistSchedulesTable');
-            schedTbody.innerHTML = '';
-            schedules.forEach(s => {
-                schedTbody.innerHTML += '<tr>' +
-                    '<td>Therapist #' + s.therapistId + '</td>' +
-                    '<td>' + s.dayOfWeek + '</td>' +
-                    '<td>' + s.startTime + ' - ' + s.endTime + '</td>' +
-                    '<td>' + (s.unavailabilityReason ? '<span style="color:red;">Unavailable: ' + s.unavailabilityReason + '</span>' : '<span style="color:green;">Available</span>') + '</td>' +
-                '</tr>';
-            });
+            try {
+                // Load Schedules
+                const schedRes = await fetch(API + '/schedules');
+                if (schedRes.ok) {
+                    const schedules = await schedRes.json();
+                    const schedTbody = document.getElementById('therapistSchedulesTable');
+                    schedTbody.innerHTML = '';
+                    schedules.forEach(s => {
+                        schedTbody.innerHTML += '<tr>' +
+                            '<td>Therapist #' + s.therapistId + '</td>' +
+                            '<td>' + s.dayOfWeek + '</td>' +
+                            '<td>' + s.startTime + ' - ' + s.endTime + '</td>' +
+                            '<td>' + (s.unavailabilityReason ? '<span style="color:red;">Unavailable: ' + s.unavailabilityReason + '</span>' : '<span style="color:green;">Available</span>') + '</td>' +
+                        '</tr>';
+                    });
+                }
 
-            // Load Appointments
-            const appRes = await fetch(API + '/appointments');
-            const appointments = await appRes.json();
-            const appTbody = document.getElementById('allAppointmentsTable');
-            appTbody.innerHTML = '';
-            appointments.forEach(a => {
-                appTbody.innerHTML += '<tr>' +
-                    '<td>#' + a.id + '</td>' +
-                    '<td>Client #' + a.clientId + '</td>' +
-                    '<td>Therapist #' + a.therapistId + '</td>' +
-                    '<td>' + a.appointmentDateTime + '</td>' +
-                    '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
-                    '<td>' + (a.notes || '') + (a.rescheduleReason ? '<br><i>Reason: ' + a.rescheduleReason + '</i>' : '') + '</td>' +
-                    '<td>' +
-                        '<button class="btn-approve" onclick="updateStatus(' + a.id + ', \'CONFIRMED\')">Approve</button> ' +
-                        '<button class="btn-reject" onclick="updateStatus(' + a.id + ', \'CANCELLED\')">Reject</button> ' +
-                        '<button class="btn-reschedule" onclick="rescheduleAppt(' + a.id + ')">Reschedule</button>' +
-                    '</td>' +
-                '</tr>';
-            });
+                // Load Appointments
+                const appRes = await fetch(API + '/appointments');
+                if (appRes.ok) {
+                    const appointments = await appRes.json();
+                    const appTbody = document.getElementById('allAppointmentsTable');
+                    appTbody.innerHTML = '';
+                    appointments.forEach(a => {
+                        appTbody.innerHTML += '<tr>' +
+                            '<td>#' + a.id + '</td>' +
+                            '<td>Client #' + a.clientId + '</td>' +
+                            '<td>Therapist #' + a.therapistId + '</td>' +
+                            '<td>' + a.appointmentDateTime + '</td>' +
+                            '<td><span class="status ' + a.status + '">' + a.status + '</span></td>' +
+                            '<td>' + (a.notes || '') + (a.rescheduleReason ? '<br><i>Reason: ' + a.rescheduleReason + '</i>' : '') + '</td>' +
+                            '<td>' +
+                                '<button class="btn-approve" onclick="updateStatus(' + a.id + ', \'CONFIRMED\')">Approve</button> ' +
+                                '<button class="btn-reject" onclick="updateStatus(' + a.id + ', \'CANCELLED\')">Reject</button> ' +
+                                '<button class="btn-reschedule" onclick="rescheduleAppt(' + a.id + ')">Reschedule</button>' +
+                            '</td>' +
+                        '</tr>';
+                    });
+                }
+            } catch (error) {
+                console.error("Failed to fetch dashboard data:", error);
+            }
         }
 
         async function updateStatus(id, status) {
-            await fetch(API + '/appointments/' + id + '/status', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: status, receptionistId: '200' })
-            });
-            loadAllData();
+            try {
+                const receptionistId = currentUser ? currentUser.id : '200';
+                const res = await fetch(API + '/appointments/' + id + '/status', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: status, receptionistId: receptionistId })
+                });
+
+                if (res.ok) {
+                    loadAllData();
+                } else {
+                    const err = await res.text();
+                    alert("Status update failed: " + err);
+                }
+            } catch (error) {
+                alert("Network error while updating appointment status.");
+            }
         }
 
         async function rescheduleAppt(id) {
@@ -114,20 +149,23 @@
             if (!newTime) return;
             const reason = prompt("Enter reason for rescheduling to notify Client & Therapist:");
 
-            const res = await fetch(API + '/appointments/' + id + '/reschedule', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ newDateTime: newTime, reason: reason })
-            });
+            try {
+                const res = await fetch(API + '/appointments/' + id + '/reschedule', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ newDateTime: newTime, reason: reason })
+                });
 
-            if (!res.ok) {
-                const err = await res.text();
-                alert("Reschedule Failed: " + err);
+                if (res.ok) {
+                    loadAllData();
+                } else {
+                    const err = await res.text();
+                    alert("Reschedule Failed: " + err);
+                }
+            } catch (error) {
+                alert("Network error while rescheduling appointment.");
             }
-            loadAllData();
         }
-
-        loadAllData();
     </script>
 </body>
 </html>

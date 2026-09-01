@@ -92,10 +92,10 @@ public class AppointmentController {
                         app.setReceptionistId(Long.parseLong(request.get("receptionistId")));
                     } catch (NumberFormatException ignored) {}
                 }
-                Appointment saved = appointmentRepository.save(app);
-                return ResponseEntity.ok(saved);
+               Appointment saved = appointmentRepository.save(app);
+                return ResponseEntity.ok((Object) saved);
             }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("error", "Appointment not found with ID: " + id)));
+                    .body((Object) Map.of("error", "Appointment not found with ID: " + id)));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("error", "Failed to update appointment status: " + e.getMessage()));

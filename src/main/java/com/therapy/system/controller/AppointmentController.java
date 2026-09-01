@@ -77,11 +77,11 @@ public class AppointmentController {
         return ResponseEntity.ok(therapistAppointments);
     }
 
-    @PatchMapping("/{id}/status")
+  @PatchMapping("/{id}/status")
     public ResponseEntity<?> updateStatus(
             @PathVariable Long id, 
             @RequestBody Map<String, String> request) {
-        
+
         try {
             return appointmentRepository.findById(id).map(app -> {
                 if (request.containsKey("status") && request.get("status") != null) {
@@ -92,7 +92,7 @@ public class AppointmentController {
                         app.setReceptionistId(Long.parseLong(request.get("receptionistId")));
                     } catch (NumberFormatException ignored) {}
                 }
-               Appointment saved = appointmentRepository.save(app);
+                Appointment saved = appointmentRepository.save(app);
                 return ResponseEntity.ok((Object) saved);
             }).orElseGet(() -> ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body((Object) Map.of("error", "Appointment not found with ID: " + id)));

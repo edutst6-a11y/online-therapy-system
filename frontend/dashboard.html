@@ -47,7 +47,91 @@
       </div>
     </section>
 
-    <div class="maintenance-panel" id="maintenance-panel" hidden>
+    <!-- CLIENT: book a session, track your own sessions -->
+    <div class="dashboard-panel" id="client-panel" hidden>
+      <div>
+        <h2>Book a session</h2>
+        <form class="auth-form" id="book-form" novalidate>
+          <label class="field">
+            <span>Therapist</span>
+            <select name="therapistId" id="therapist-select" required>
+              <option value="">Choose a therapist…</option>
+            </select>
+          </label>
+          <div class="field">
+            <span>Available times</span>
+            <div class="slot-list" id="client-slot-list">
+              <p class="empty-note">Choose a therapist to see open times.</p>
+            </div>
+          </div>
+          <label class="field">
+            <span>Notes (optional)</span>
+            <input type="text" name="notes" placeholder="Anything your therapist should know">
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button" id="book-submit" disabled>
+            <span>Request Session</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+      <div>
+        <h2>Your sessions</h2>
+        <div class="appointment-list" id="client-appointments">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- THERAPIST: publish availability, see your session list -->
+    <div class="dashboard-panel" id="therapist-panel" hidden>
+      <div>
+        <h2>Publish availability</h2>
+        <form class="auth-form" id="availability-form" novalidate>
+          <label class="field">
+            <span>Start time</span>
+            <input type="datetime-local" name="startTime" required>
+          </label>
+          <label class="field">
+            <span>End time</span>
+            <input type="datetime-local" name="endTime" required>
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button">
+            <span>Add Slot</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+        <h2 style="margin-top:22px">Your open slots</h2>
+        <div class="appointment-list" id="therapist-slots">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+      <div>
+        <h2>Your sessions</h2>
+        <div class="appointment-list" id="therapist-appointments">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECEPTIONIST: triage incoming requests -->
+    <div class="dashboard-panel" id="receptionist-panel" hidden>
+      <div>
+        <h2>Needs a decision</h2>
+        <div class="appointment-list" id="receptionist-pending">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+      <div>
+        <h2>All appointments</h2>
+        <div class="appointment-list" id="receptionist-all">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="dashboard-panel" id="maintenance-panel" hidden>
       <div>
         <h2>Provision a staff account</h2>
         <form class="auth-form" id="staff-form" novalidate>
@@ -89,6 +173,10 @@
             </thead>
             <tbody id="user-table-body"></tbody>
           </table>
+        </div>
+        <h2 style="margin-top:22px">All appointments</h2>
+        <div class="appointment-list" id="maintenance-appointments">
+          <p class="empty-note">Loading…</p>
         </div>
       </div>
     </div>

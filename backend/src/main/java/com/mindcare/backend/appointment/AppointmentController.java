@@ -1,0 +1,171 @@
+package com.mindcare.backend.appointment;
+
+import com.mindcare.backend.appointment.dto.AppointmentResponse;
+import com.mindcare.backend.appointment.dto.BookAppointmentRequest;
+import com.mindcare.backend.appointment.dto.RescheduleRequest;
+import com.mindcare.backend.calendar.GoogleCalendarService;
+import com.mindcare.backend.model.Appointment;
+import com.mindcare.backend.model.AppointmentStatus;
+import com.mindcare.backend.model.AvailabilitySlot;
+import com.mindcare.backend.model.Role;
+import com.mindcare.backend.model.User;
+import com.mindcare.backend.repository.AppointmentRepository;
+import com.mindcare.backend.repository.AvailabilitySlotRepository;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/api/appointments")
+@Transactional
+public class AppointmentController {
+
+    private final AppointmentRepository appointmentRepository;
+    private final AvailabilitySlotRepository availabilityRepository;
+    private final GoogleCalendarService calendarService;
+
+    public AppointmentController(
+            AppointmentRepository appointmentRepository,
+            AvailabilitySlotRepository availabilityRepository,
+            GoogleCalendarService calendarService
+    ) {
+        this.appointmentRepository = appointmentRepository;
+        this.availabilityRepository = availabilityRepository;
+        this.calendarService = calendarService;
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('CLIENT')")
+    public AppointmentResponse book(@Valid @RequestBody BookAppointmentRequest request, @AuthenticationPrincipal User client) {
+        AvailabilitySlot slot = availabilityRepository.findById(request.availabilitySlotId())
+                .orElseThrow(() -> new NoSuchElementException("Slot not found"));
+
+        if (slot.isBooked()) {
+            throw new IllegalArgumentException("That slot is no longer available");
+        }
+
+        slot.setBooked(true);
+        availabilityRepository.save(slot);
+
+        int durationMinutes = (int) Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
+        Appointment appointment = new Appointment(client, slot.getTherapist(), slot.getStartTime(), durationMinutes, request.notes(), slot);
+        appointmentRepository.save(appointment);
+
+        return AppointmentResponse.from(appointment);
+    }
+
+    /** The caller's own appointments — as a client, or as the assigned therapist. */
+    @GetMapping("/mine")
+    @PreAuthorize("hasAnyRole('CLIENT', 'THERAPIST')")
+    public List<AppointmentResponse> mine(@AuthenticationPrincipal User user) {
+        List<Appointment> appointments = user.getRole() == Role.CLIENT
+                ? appointmentRepository.findByClientIdOrderByScheduledAtDesc(user.getId())
+                : appointmentRepository.findByTherapistIdOrderByScheduledAtDesc(user.getId());
+        return appointments.stream().map(AppointmentResponse::from).toList();
+    }
+
+    /** Every appointment — for front-desk triage and clinic-wide oversight. */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('RECEPTIONIST', 'MAINTENANCE')")
+    public List<AppointmentResponse> all() {
+        return appointmentRepository.findAll().stream().map(AppointmentResponse::from).toList();
+    }
+
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST', 'MAINTENANCE')")
+    public AppointmentResponse approve(@PathVariable UUID id) {
+        Appointment appointment = findOrThrow(id);
+        Instant end = appointment.getScheduledAt().plus(Duration.ofMinutes(appointment.getDurationMinutes()));
+
+        GoogleCalendarService.MeetEvent event = calendarService.createSessionEvent(
+                "MindCare Session",
+                appointment.getClient().getEmail(),
+                appointment.getTherapist().getEmail(),
+                appointment.getScheduledAt(),
+                end
+        );
+
+        appointment.setMeetLink(event.meetLink());
+        appointment.setGoogleEventId(event.eventId());
+        appointment.setStatus(AppointmentStatus.APPROVED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    @PatchMapping("/{id}/decline")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST', 'MAINTENANCE')")
+    public AppointmentResponse decline(@PathVariable UUID id) {
+        Appointment appointment = findOrThrow(id);
+        freeSlot(appointment);
+        appointment.setStatus(AppointmentStatus.DECLINED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    @PatchMapping("/{id}/reschedule")
+    @PreAuthorize("hasAnyRole('RECEPTIONIST', 'MAINTENANCE')")
+    public AppointmentResponse reschedule(@PathVariable UUID id, @Valid @RequestBody RescheduleRequest request) {
+        Appointment appointment = findOrThrow(id);
+        appointment.setScheduledAt(request.newScheduledAt());
+        appointment.setMeetLink(null);
+        appointment.setGoogleEventId(null);
+        appointment.setStatus(AppointmentStatus.RESCHEDULED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('CLIENT', 'RECEPTIONIST', 'MAINTENANCE')")
+    public AppointmentResponse cancel(@PathVariable UUID id, @AuthenticationPrincipal User user) {
+        Appointment appointment = findOrThrow(id);
+        if (user.getRole() == Role.CLIENT && !appointment.getClient().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Not your appointment");
+        }
+        freeSlot(appointment);
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    @PatchMapping("/{id}/complete")
+    @PreAuthorize("hasAnyRole('THERAPIST', 'MAINTENANCE')")
+    public AppointmentResponse complete(@PathVariable UUID id, @AuthenticationPrincipal User user) {
+        Appointment appointment = findOrThrow(id);
+        if (user.getRole() == Role.THERAPIST && !appointment.getTherapist().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Not your appointment");
+        }
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    private Appointment findOrThrow(UUID id) {
+        return appointmentRepository.findById(id).orElseThrow(() -> new NoSuchElementException("Appointment not found"));
+    }
+
+    private void freeSlot(Appointment appointment) {
+        AvailabilitySlot slot = appointment.getAvailabilitySlot();
+        if (slot != null) {
+            slot.setBooked(false);
+            availabilityRepository.save(slot);
+        }
+    }
+}

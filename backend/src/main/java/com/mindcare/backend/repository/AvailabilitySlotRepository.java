@@ -9,4 +9,6 @@ import java.util.UUID;
 public interface AvailabilitySlotRepository extends JpaRepository<AvailabilitySlot, UUID> {
 
     List<AvailabilitySlot> findByTherapistIdAndBookedFalseOrderByStartTimeAsc(UUID therapistId);
+
+    List<AvailabilitySlot> findByTherapistIdOrderByStartTimeAsc(UUID therapistId);
 }

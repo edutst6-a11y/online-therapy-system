@@ -312,6 +312,8 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
   transition: background 0.25s ease, color 0.25s ease, transform 0.25s ease;
 }
 
@@ -411,6 +413,8 @@ button { font-family: inherit; cursor: pointer; }
   display: flex;
   align-items: center;
   justify-content: center;
+  text-decoration: none;
+  cursor: pointer;
   transition: transform 0.25s ease;
 }
 

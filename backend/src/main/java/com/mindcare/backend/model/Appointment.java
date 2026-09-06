@@ -34,12 +34,28 @@ public class Appointment {
     @Column(nullable = false)
     private Instant scheduledAt;
 
+    @Column(nullable = false)
+    private int durationMinutes = 50;
+
+    /** Nullable: the slot this was booked from, so it can be re-opened if declined or cancelled. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "availability_slot_id")
+    private AvailabilitySlot availabilitySlot;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private AppointmentStatus status = AppointmentStatus.PENDING;
 
     @Column(length = 1000)
     private String notes;
+
+    /** Set once the session is approved and a Google Calendar event with a Meet link is created. */
+    @Column
+    private String meetLink;
+
+    /** Google Calendar event id, kept so the event can be updated or removed later (e.g. on cancellation). */
+    @Column
+    private String googleEventId;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -50,11 +66,17 @@ public class Appointment {
     protected Appointment() {
     }
 
-    public Appointment(User client, User therapist, Instant scheduledAt, String notes) {
+    public Appointment(User client, User therapist, Instant scheduledAt, int durationMinutes, String notes, AvailabilitySlot availabilitySlot) {
         this.client = client;
         this.therapist = therapist;
         this.scheduledAt = scheduledAt;
+        this.durationMinutes = durationMinutes;
         this.notes = notes;
+        this.availabilitySlot = availabilitySlot;
+    }
+
+    public AvailabilitySlot getAvailabilitySlot() {
+        return availabilitySlot;
     }
 
     public UUID getId() {
@@ -76,6 +98,26 @@ public class Appointment {
     public void setScheduledAt(Instant scheduledAt) {
         this.scheduledAt = scheduledAt;
         this.updatedAt = Instant.now();
+    }
+
+    public int getDurationMinutes() {
+        return durationMinutes;
+    }
+
+    public String getMeetLink() {
+        return meetLink;
+    }
+
+    public void setMeetLink(String meetLink) {
+        this.meetLink = meetLink;
+    }
+
+    public String getGoogleEventId() {
+        return googleEventId;
+    }
+
+    public void setGoogleEventId(String googleEventId) {
+        this.googleEventId = googleEventId;
     }
 
     public AppointmentStatus getStatus() {

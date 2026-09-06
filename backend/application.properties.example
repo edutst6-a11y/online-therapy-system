@@ -1,0 +1,20 @@
+# Copy this file to backend/application.properties (already gitignored) and
+# fill in real values. Spring Boot auto-loads backend/application.properties
+# from the working directory and overrides the placeholders committed in
+# src/main/resources/application.properties — that's how real secrets stay
+# out of source control while `mvn spring-boot:run` still works with no
+# extra flags or env vars.
+
+DB_NAME=mindcare
+DB_USERNAME=mindcare
+DB_PASSWORD=changeme
+
+# Generate with:
+#   python3 -c "import secrets,base64;print(base64.b64encode(secrets.token_bytes(48)).decode())"
+JWT_SECRET=changeme
+
+# Leave both blank to skip seeding; only takes effect if no MAINTENANCE
+# account exists yet in the database.
+SEED_MAINTENANCE_EMAIL=
+SEED_MAINTENANCE_PASSWORD=
+SEED_MAINTENANCE_NAME=Maintenance Admin

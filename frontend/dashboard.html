@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MindCare — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true">
+  <span class="droplet drop-a"></span>
+  <span class="droplet drop-b"></span>
+  <span class="droplet drop-c"></span>
+  <span class="droplet drop-d"></span>
+  <span class="droplet drop-e"></span>
+</div>
+
+<main class="browser-card">
+
+  <aside class="side-rail">
+    <div class="brand-vertical">
+      <span class="brand-name">MINDCARE</span>
+      <span class="brand-sub">Online&nbsp;Therapy</span>
+    </div>
+    <div class="follow-block">
+      <p class="label">DASHBOARD</p>
+    </div>
+  </aside>
+
+  <div class="stage">
+
+    <nav class="floating-nav">
+      <a class="nav-item" href="index.html">Site</a>
+      <button class="nav-item nav-pill--outline" id="logout-btn" type="button">Sign Out</button>
+    </nav>
+
+    <section class="screen active" id="screen-dashboard">
+      <div class="organic-blob" aria-hidden="true"></div>
+      <div class="hero-copy">
+        <span class="role-pill" id="role-pill">…</span>
+        <h1 class="headline" id="greeting">HELLO.</h1>
+        <p class="hero-sub" id="panel-text">Loading your account…</p>
+      </div>
+    </section>
+
+    <div class="maintenance-panel" id="maintenance-panel" hidden>
+      <div>
+        <h2>Provision a staff account</h2>
+        <form class="auth-form" id="staff-form" novalidate>
+          <label class="field">
+            <span>Full name</span>
+            <input type="text" name="fullName" required>
+          </label>
+          <label class="field">
+            <span>Email</span>
+            <input type="email" name="email" required>
+          </label>
+          <label class="field">
+            <span>Temporary password</span>
+            <input type="password" name="password" minlength="8" required>
+          </label>
+          <label class="field">
+            <span>Role</span>
+            <select name="role" required>
+              <option value="THERAPIST">Therapist</option>
+              <option value="RECEPTIONIST">Receptionist</option>
+              <option value="MAINTENANCE">Maintenance</option>
+            </select>
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button">
+            <span>Create Account</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h2>Clinic overview</h2>
+        <div class="stat-row" id="stat-row"></div>
+        <div class="user-table-wrap">
+          <table class="user-table">
+            <thead>
+              <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+            </thead>
+            <tbody id="user-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<script src="js/config.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>

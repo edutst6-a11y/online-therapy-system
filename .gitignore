@@ -1,0 +1,37 @@
+# --- Build output ---
+target/
+**/target/
+build/
+dist/
+node_modules/
+**/node_modules/
+
+# --- Secrets / local config overrides ---
+# Real credentials live only in backend/application.properties (Spring Boot
+# auto-loads it from the working dir and it's never committed) or in env vars.
+/backend/application.properties
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Personal reference screenshots that contain live credentials / private
+# browser context — never meant to be project source material.
+databasedetails.png
+githubinfor.png
+
+# --- IDE / OS ---
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log
+
+# --- Maven ---
+backend/*.log

@@ -241,7 +241,8 @@ button { font-family: inherit; cursor: pointer; }
   margin-top: clamp(16px, 2.4vw, 26px);
   border-radius: 26px;
   background: linear-gradient(155deg, #14231a 0%, var(--bg) 62%);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   display: none;
   padding: clamp(24px, 4vw, 56px);
   grid-template-columns: 1.3fr 1fr;

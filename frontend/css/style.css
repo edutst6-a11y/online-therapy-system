@@ -180,7 +180,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .stage {
   position: relative;
-  flex: 1;
+  flex: 1 0 auto;
   padding: clamp(16px, 2.2vw, 28px);
   display: flex;
   flex-direction: column;
@@ -237,7 +237,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .screen {
   position: relative;
-  flex: 1;
+  flex: 1 0 auto;
   margin-top: clamp(16px, 2.4vw, 26px);
   border-radius: 26px;
   background: linear-gradient(155deg, #14231a 0%, var(--bg) 62%);

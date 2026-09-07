@@ -49,13 +49,9 @@ public class Appointment {
     @Column(length = 1000)
     private String notes;
 
-    /** Set once the session is approved and a Google Calendar event with a Meet link is created. */
+    /** The therapist's own Google Meet link, pasted in once they've started the call. */
     @Column
     private String meetLink;
-
-    /** Google Calendar event id, kept so the event can be updated or removed later (e.g. on cancellation). */
-    @Column
-    private String googleEventId;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -110,14 +106,6 @@ public class Appointment {
 
     public void setMeetLink(String meetLink) {
         this.meetLink = meetLink;
-    }
-
-    public String getGoogleEventId() {
-        return googleEventId;
-    }
-
-    public void setGoogleEventId(String googleEventId) {
-        this.googleEventId = googleEventId;
     }
 
     public AppointmentStatus getStatus() {

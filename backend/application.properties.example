@@ -22,12 +22,3 @@ JWT_SECRET=changeme
 SEED_MAINTENANCE_EMAIL=
 SEED_MAINTENANCE_PASSWORD=
 SEED_MAINTENANCE_NAME=Maintenance Admin
-
-# Google Calendar/Meet for video sessions — see GoogleOAuthController for the
-# one-time setup flow. Leave blank to run without video links.
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REFRESH_TOKEN=
-GOOGLE_REDIRECT_URI=https://your-backend-host/api/google/oauth/callback
-GOOGLE_CALENDAR_ID=primary
-GOOGLE_CALENDAR_TIMEZONE=UTC

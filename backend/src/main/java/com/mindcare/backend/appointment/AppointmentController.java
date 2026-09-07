@@ -3,7 +3,7 @@ package com.mindcare.backend.appointment;
 import com.mindcare.backend.appointment.dto.AppointmentResponse;
 import com.mindcare.backend.appointment.dto.BookAppointmentRequest;
 import com.mindcare.backend.appointment.dto.RescheduleRequest;
-import com.mindcare.backend.calendar.GoogleCalendarService;
+import com.mindcare.backend.appointment.dto.SetMeetLinkRequest;
 import com.mindcare.backend.model.Appointment;
 import com.mindcare.backend.model.AppointmentStatus;
 import com.mindcare.backend.model.AvailabilitySlot;
@@ -27,7 +27,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -39,16 +38,13 @@ public class AppointmentController {
 
     private final AppointmentRepository appointmentRepository;
     private final AvailabilitySlotRepository availabilityRepository;
-    private final GoogleCalendarService calendarService;
 
     public AppointmentController(
             AppointmentRepository appointmentRepository,
-            AvailabilitySlotRepository availabilityRepository,
-            GoogleCalendarService calendarService
+            AvailabilitySlotRepository availabilityRepository
     ) {
         this.appointmentRepository = appointmentRepository;
         this.availabilityRepository = availabilityRepository;
-        this.calendarService = calendarService;
     }
 
     @PostMapping
@@ -93,19 +89,24 @@ public class AppointmentController {
     @PreAuthorize("hasAnyRole('RECEPTIONIST', 'MAINTENANCE')")
     public AppointmentResponse approve(@PathVariable UUID id) {
         Appointment appointment = findOrThrow(id);
-        Instant end = appointment.getScheduledAt().plus(Duration.ofMinutes(appointment.getDurationMinutes()));
-
-        GoogleCalendarService.MeetEvent event = calendarService.createSessionEvent(
-                "MindCare Session",
-                appointment.getClient().getEmail(),
-                appointment.getTherapist().getEmail(),
-                appointment.getScheduledAt(),
-                end
-        );
-
-        appointment.setMeetLink(event.meetLink());
-        appointment.setGoogleEventId(event.eventId());
         appointment.setStatus(AppointmentStatus.APPROVED);
+        appointmentRepository.save(appointment);
+        return AppointmentResponse.from(appointment);
+    }
+
+    /**
+     * The therapist starts a normal Google Meet call themselves (meet.google.com/new,
+     * under their own Google account) and pastes the resulting link here so the
+     * client can join the same call. No backend Google integration involved.
+     */
+    @PatchMapping("/{id}/meet-link")
+    @PreAuthorize("hasAnyRole('THERAPIST', 'MAINTENANCE')")
+    public AppointmentResponse setMeetLink(@PathVariable UUID id, @Valid @RequestBody SetMeetLinkRequest request, @AuthenticationPrincipal User user) {
+        Appointment appointment = findOrThrow(id);
+        if (user.getRole() == Role.THERAPIST && !appointment.getTherapist().getId().equals(user.getId())) {
+            throw new AccessDeniedException("Not your appointment");
+        }
+        appointment.setMeetLink(request.meetLink());
         appointmentRepository.save(appointment);
         return AppointmentResponse.from(appointment);
     }
@@ -126,7 +127,6 @@ public class AppointmentController {
         Appointment appointment = findOrThrow(id);
         appointment.setScheduledAt(request.newScheduledAt());
         appointment.setMeetLink(null);
-        appointment.setGoogleEventId(null);
         appointment.setStatus(AppointmentStatus.RESCHEDULED);
         appointmentRepository.save(appointment);
         return AppointmentResponse.from(appointment);

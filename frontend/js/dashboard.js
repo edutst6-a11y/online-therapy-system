@@ -82,7 +82,7 @@
 
   // ---------- shared appointment card renderer ----------
 
-  function appointmentCard(appt, { personLabel, personName, actions }) {
+  function appointmentCard(appt, { personLabel, personName, actions, extra }) {
     const joinButton = appt.status === "APPROVED" && appt.meetLink
       ? `<a class="mini-button mini-button--accent" href="${escapeHtml(appt.meetLink)}" target="_blank" rel="noopener">Join Session</a>`
       : "";
@@ -95,6 +95,7 @@
         <div class="when">${formatWhen(appt.scheduledAt)} · ${appt.durationMinutes} min</div>
         ${appt.notes ? `<div class="when">${escapeHtml(appt.notes)}</div>` : ""}
         <div class="actions">${joinButton}${actions || ""}</div>
+        ${extra || ""}
       </div>`;
   }
 
@@ -294,14 +295,36 @@
     });
 
     document.getElementById("therapist-appointments").addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-action='complete']");
-      if (!btn) return;
-      btn.disabled = true;
-      try {
-        await api(`/api/appointments/${btn.closest(".appointment-card").dataset.id}/complete`, { method: "PATCH" });
-        loadTherapistAppointments();
-      } catch (_) {
-        btn.disabled = false;
+      const card = e.target.closest(".appointment-card");
+      if (!card) return;
+      const id = card.dataset.id;
+
+      if (e.target.closest("[data-action='complete']")) {
+        e.target.disabled = true;
+        try {
+          await api(`/api/appointments/${id}/complete`, { method: "PATCH" });
+          loadTherapistAppointments();
+        } catch (_) {
+          e.target.disabled = false;
+        }
+      } else if (e.target.closest("[data-action='save-meet-link']")) {
+        const input = card.querySelector("input[data-meet-link-input]");
+        const errorEl = card.querySelector("[data-meet-error]");
+        errorEl.hidden = true;
+        if (!input.value.trim()) return;
+        e.target.disabled = true;
+        try {
+          await api(`/api/appointments/${id}/meet-link`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ meetLink: input.value.trim() }),
+          });
+          loadTherapistAppointments();
+        } catch (err) {
+          errorEl.textContent = err.message;
+          errorEl.hidden = false;
+          e.target.disabled = false;
+        }
       }
     });
 
@@ -335,6 +358,16 @@
         personName: appt.clientName,
         actions: appt.status === "APPROVED"
           ? '<button class="mini-button" data-action="complete">Mark Complete</button>' : "",
+        extra: appt.status === "APPROVED" && !appt.meetLink ? `
+          <div class="row" style="margin-top:6px">
+            <a class="mini-button" href="https://meet.google.com/new" target="_blank" rel="noopener">Start Google Meet</a>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <input type="text" placeholder="Paste the meet.google.com link here" style="flex:1" data-meet-link-input>
+            <button class="mini-button mini-button--accent" data-action="save-meet-link">Save Link</button>
+          </div>
+          <p class="form-error" data-meet-error hidden></p>
+        ` : "",
       }));
     } catch (_) {
       container.innerHTML = '<p class="empty-note">Could not load your sessions.</p>';

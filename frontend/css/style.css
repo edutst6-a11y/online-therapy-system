@@ -855,6 +855,45 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 0.8rem;
 }
 
+/* ---------- Billing ---------- */
+
+.item-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.item-row input {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--white-15);
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: var(--white);
+  font-family: inherit;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.item-row input[name="description"] { flex: 2; min-width: 0; }
+.item-row input[name="amount"] { flex: 1; min-width: 0; }
+.item-row input[name="quantity"] { flex: 0 0 56px; }
+
+.receipt-box {
+  border: 1px solid rgba(143, 190, 158, 0.35);
+  background: rgba(143, 190, 158, 0.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 0.78rem;
+  margin-top: 8px;
+}
+
+.receipt-box .receipt-number {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
 /* ---------- Messaging ---------- */
 
 .conversation-card {

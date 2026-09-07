@@ -1,7 +1,9 @@
 package com.mindcare.backend.bootstrap;
 
 import com.mindcare.backend.model.AppointmentStatus;
+import com.mindcare.backend.model.InvoiceStatus;
 import com.mindcare.backend.model.NotificationType;
+import com.mindcare.backend.model.PaymentMethod;
 import com.mindcare.backend.model.Role;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -37,6 +39,8 @@ public class EnumConstraintFixupRunner implements CommandLineRunner {
         resync("users", "role", "users_role_check", Role.values());
         resync("appointments", "status", "appointments_status_check", AppointmentStatus.values());
         resync("notifications", "type", "notifications_type_check", NotificationType.values());
+        resync("invoices", "status", "invoices_status_check", InvoiceStatus.values());
+        resync("payments", "method", "payments_method_check", PaymentMethod.values());
     }
 
     private void resync(String table, String column, String constraintName, Enum<?>[] values) {

@@ -1,6 +1,7 @@
 package com.mindcare.backend.repository;
 
 import com.mindcare.backend.model.Appointment;
+import com.mindcare.backend.model.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -13,4 +14,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     List<Appointment> findByTherapistIdOrderByScheduledAtDesc(UUID therapistId);
 
     boolean existsByClientIdAndTherapistId(UUID clientId, UUID therapistId);
+
+    long countByStatus(AppointmentStatus status);
 }

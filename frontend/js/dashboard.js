@@ -39,7 +39,7 @@
     THERAPIST: "Publish times you're free, then track the sessions booked against them.",
     CLINICAL_SUPERVISOR: "Case review and clinical oversight tools are coming soon for this role.",
     RECEPTIONIST: "Incoming requests need your approval, a reschedule, or a decline.",
-    FINANCE: "Billing, invoicing, and payment tools are coming soon for this role.",
+    FINANCE: "Build invoices, record payments, and track the clinic's finances below.",
     MAINTENANCE: "You have clinic-wide visibility: every user, every appointment, and the ability to provision new staff accounts below.",
   };
 
@@ -134,11 +134,13 @@
       document.getElementById("client-panel").hidden = false;
       document.getElementById("messages-panel").hidden = false;
       document.getElementById("documents-panel").hidden = false;
+      document.getElementById("billing-panel").hidden = false;
       initIntakePanel();
       initClientAssessments();
       initClientPanel();
       initMessagesPanel(user.role);
       initDocumentsPanel(user.role);
+      initClientBillingPanel();
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
       document.getElementById("clinical-notes-panel").hidden = false;
@@ -153,6 +155,9 @@
     } else if (user.role === "RECEPTIONIST") {
       document.getElementById("receptionist-panel").hidden = false;
       initReceptionistPanel();
+    } else if (user.role === "FINANCE") {
+      document.getElementById("finance-panel").hidden = false;
+      initFinancePanel();
     } else if (user.role === "MAINTENANCE") {
       document.getElementById("maintenance-panel").hidden = false;
       initMaintenancePanel();
@@ -1319,6 +1324,354 @@
     });
 
     loadConversations(role);
+  }
+
+  // ================= BILLING =================
+
+  function invoiceStatusClass(status) {
+    if (status === "PAID") return "status-badge--approved";
+    if (status === "CANCELLED") return "status-badge--cancelled";
+    return "status-badge--pending";
+  }
+
+  function invoiceStatusLabel(status) {
+    return status.toLowerCase().replace("_", " ");
+  }
+
+  function invoiceItemsList(items) {
+    return `<div class="appointment-list" style="margin-bottom:14px">
+      ${items.map((it) => `
+        <div class="appointment-card">
+          <div class="row"><span class="who">${escapeHtml(it.description)}</span><span class="when">${it.amount} × ${it.quantity}</span></div>
+        </div>`).join("")}
+    </div>`;
+  }
+
+  async function viewReceipt(invoiceId, paymentId, slot) {
+    try {
+      const receipt = await api(`/api/invoices/${invoiceId}/payments/${paymentId}/receipt`);
+      slot.innerHTML = `<div class="receipt-box"><div class="receipt-number">${escapeHtml(receipt.receiptNumber)}</div>${receipt.amount} via ${receipt.method.toLowerCase()} · ${formatWhen(receipt.paidAt)}</div>`;
+    } catch (_) {
+      slot.innerHTML = '<p class="empty-note">Could not load receipt.</p>';
+    }
+  }
+
+  function paymentsListHtml(payments) {
+    if (!payments.length) return '<p class="empty-note">No payments recorded yet.</p>';
+    return payments.map((p) => `
+      <div class="appointment-card" data-payment-id="${p.id}">
+        <div class="row"><span class="who">${p.amount} · ${escapeHtml(p.method)}</span><span class="when">${formatWhen(p.paidAt)}</span></div>
+        <div class="when">by ${escapeHtml(p.recordedByName)}${p.reference ? " · " + escapeHtml(p.reference) : ""}</div>
+        <div class="actions"><button class="mini-button" data-action="view-receipt">View Receipt</button></div>
+        <div class="receipt-slot"></div>
+      </div>`).join("");
+  }
+
+  // ---- CLIENT billing ----
+
+  function initClientBillingPanel() {
+    document.getElementById("billing-invoice-list").addEventListener("click", (e) => {
+      const card = e.target.closest("[data-id]");
+      if (!card) return;
+      loadClientInvoiceDetail(card.dataset.id);
+    });
+    loadClientInvoices();
+  }
+
+  async function loadClientInvoices() {
+    const list = document.getElementById("billing-invoice-list");
+    try {
+      const invoices = await api("/api/invoices/mine");
+      renderList(list, invoices, "No invoices yet.", (inv) => `
+        <div class="appointment-card" data-id="${inv.id}">
+          <div class="row">
+            <span class="who">${escapeHtml(inv.invoiceNumber)}</span>
+            <span class="status-badge ${invoiceStatusClass(inv.status)}">${invoiceStatusLabel(inv.status)}</span>
+          </div>
+          <div class="when">Total ${inv.total} · Balance due ${inv.balanceDue}</div>
+          <div class="when">${formatWhen(inv.createdAt)}</div>
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load invoices.</p>';
+    }
+  }
+
+  async function loadClientInvoiceDetail(id) {
+    const wrap = document.getElementById("billing-detail-wrap");
+    wrap.innerHTML = '<p class="empty-note">Loading…</p>';
+    let invoice, payments;
+    try {
+      [invoice, payments] = await Promise.all([api(`/api/invoices/${id}`), api(`/api/invoices/${id}/payments`)]);
+    } catch (_) {
+      wrap.innerHTML = '<p class="empty-note">Could not load this invoice.</p>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <h2>${escapeHtml(invoice.invoiceNumber)}</h2>
+      <p class="hero-sub" style="margin-bottom:10px">
+        <span class="status-badge ${invoiceStatusClass(invoice.status)}">${invoiceStatusLabel(invoice.status)}</span>
+        · Total ${invoice.total} · Paid ${invoice.amountPaid} · Balance ${invoice.balanceDue}
+      </p>
+      ${invoiceItemsList(invoice.items)}
+      <h2>Payments</h2>
+      <div class="appointment-list" id="client-payments-list">${paymentsListHtml(payments)}</div>
+    `;
+
+    document.getElementById("client-payments-list").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action='view-receipt']");
+      if (!btn) return;
+      const card = btn.closest("[data-payment-id]");
+      viewReceipt(id, card.dataset.paymentId, card.querySelector(".receipt-slot"));
+    });
+  }
+
+  // ---- FINANCE ----
+
+  function addInvoiceItemRow() {
+    const wrap = document.getElementById("invoice-items-wrap");
+    const row = document.createElement("div");
+    row.className = "item-row";
+    row.innerHTML = `
+      <input type="text" name="description" placeholder="Description" required>
+      <input type="number" name="amount" placeholder="Amount" min="0" step="0.01" required>
+      <input type="number" name="quantity" placeholder="Qty" min="1" value="1">
+      <button type="button" class="mini-button mini-button--danger" data-action="remove-row">&times;</button>
+    `;
+    wrap.appendChild(row);
+  }
+
+  function initFinancePanel() {
+    loadFinanceReports();
+    loadServices();
+    loadFinanceInvoices();
+
+    api("/api/invoices/clients").then((clients) => {
+      const select = document.getElementById("invoice-client-select");
+      select.innerHTML = '<option value="">Choose a client…</option>' +
+        clients.map((c) => `<option value="${c.id}">${escapeHtml(c.fullName)}</option>`).join("");
+    }).catch(() => {});
+
+    document.getElementById("add-invoice-item").addEventListener("click", addInvoiceItemRow);
+    addInvoiceItemRow();
+
+    document.getElementById("invoice-items-wrap").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action='remove-row']");
+      if (!btn) return;
+      const wrap = document.getElementById("invoice-items-wrap");
+      if (wrap.children.length > 1) btn.closest(".item-row").remove();
+    });
+
+    const invoiceForm = document.getElementById("invoice-form");
+    const invoiceError = invoiceForm.querySelector("[data-error]");
+    invoiceForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      invoiceError.hidden = true;
+      const clientId = document.getElementById("invoice-client-select").value;
+      if (!clientId) return;
+      const items = [...document.querySelectorAll("#invoice-items-wrap .item-row")].map((row) => ({
+        description: row.querySelector('[name="description"]').value,
+        amount: Number(row.querySelector('[name="amount"]').value),
+        quantity: Number(row.querySelector('[name="quantity"]').value) || 1,
+      }));
+      const discount = Number(new FormData(invoiceForm).get("discount")) || 0;
+      const button = invoiceForm.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        await api("/api/invoices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ clientId, items, discount }),
+        });
+        invoiceForm.reset();
+        document.getElementById("invoice-items-wrap").innerHTML = "";
+        addInvoiceItemRow();
+        loadFinanceInvoices();
+        loadFinanceReports();
+      } catch (err) {
+        invoiceError.textContent = err.message;
+        invoiceError.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    const serviceForm = document.getElementById("service-form");
+    const serviceError = serviceForm.querySelector("[data-error]");
+    serviceForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      serviceError.hidden = true;
+      const data = new FormData(serviceForm);
+      const button = serviceForm.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        await api("/api/services", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: data.get("name"), price: Number(data.get("price")) }),
+        });
+        serviceForm.reset();
+        loadServices();
+      } catch (err) {
+        serviceError.textContent = err.message;
+        serviceError.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    document.getElementById("finance-invoice-list").addEventListener("click", async (e) => {
+      const card = e.target.closest("[data-id]");
+      if (!card) return;
+      const id = card.dataset.id;
+      if (e.target.closest("[data-action='cancel-invoice']")) {
+        if (!confirm("Cancel this invoice?")) return;
+        try {
+          await api(`/api/invoices/${id}/cancel`, { method: "PATCH" });
+          loadFinanceInvoices();
+          loadFinanceReports();
+        } catch (err) {
+          alert(err.message);
+        }
+        return;
+      }
+      loadFinanceInvoiceDetail(id);
+    });
+  }
+
+  async function loadFinanceReports() {
+    try {
+      const [finance, operational] = await Promise.all([api("/api/reports/finance"), api("/api/reports/operational")]);
+      const statRow = document.getElementById("finance-stat-row");
+      statRow.innerHTML = "";
+      [
+        ["Invoiced", finance.totalInvoiced],
+        ["Collected", finance.totalCollected],
+        ["Outstanding", finance.totalOutstanding],
+        ["Clients", operational.totalClients],
+        ["Therapists", operational.totalTherapists],
+      ].forEach(([label, value]) => {
+        const tile = document.createElement("div");
+        tile.className = "stat-tile";
+        tile.innerHTML = `<div class="num">${value}</div><div class="lbl">${label}</div>`;
+        statRow.appendChild(tile);
+      });
+    } catch (_) {
+      /* leave stats as-is on failure */
+    }
+  }
+
+  async function loadServices() {
+    const list = document.getElementById("service-list");
+    try {
+      const services = await api("/api/services");
+      renderList(list, services, "No services yet.", (s) => `
+        <div class="appointment-card">
+          <div class="row"><span class="who">${escapeHtml(s.name)}</span><span class="when">${s.price}</span></div>
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load services.</p>';
+    }
+  }
+
+  async function loadFinanceInvoices() {
+    const list = document.getElementById("finance-invoice-list");
+    try {
+      const invoices = await api("/api/invoices");
+      renderList(list, invoices, "No invoices yet.", (inv) => `
+        <div class="appointment-card" data-id="${inv.id}">
+          <div class="row">
+            <span class="who">${escapeHtml(inv.invoiceNumber)} — ${escapeHtml(inv.clientName)}</span>
+            <span class="status-badge ${invoiceStatusClass(inv.status)}">${invoiceStatusLabel(inv.status)}</span>
+          </div>
+          <div class="when">Total ${inv.total} · Balance due ${inv.balanceDue}</div>
+          <div class="actions">
+            <button class="mini-button" data-action="view">View</button>
+            ${inv.status === "UNPAID" && Number(inv.amountPaid) === 0 ? '<button class="mini-button mini-button--danger" data-action="cancel-invoice">Cancel</button>' : ""}
+          </div>
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load invoices.</p>';
+    }
+  }
+
+  async function loadFinanceInvoiceDetail(id) {
+    const wrap = document.getElementById("finance-invoice-detail");
+    wrap.innerHTML = '<p class="empty-note">Loading…</p>';
+    let invoice, payments;
+    try {
+      [invoice, payments] = await Promise.all([api(`/api/invoices/${id}`), api(`/api/invoices/${id}/payments`)]);
+    } catch (_) {
+      wrap.innerHTML = '<p class="empty-note">Could not load this invoice.</p>';
+      return;
+    }
+
+    const canPay = Number(invoice.balanceDue) > 0 && invoice.status !== "CANCELLED";
+
+    wrap.innerHTML = `
+      <h2 style="margin-top:22px">${escapeHtml(invoice.invoiceNumber)} — ${escapeHtml(invoice.clientName)}</h2>
+      <p class="hero-sub" style="margin-bottom:10px">
+        <span class="status-badge ${invoiceStatusClass(invoice.status)}">${invoiceStatusLabel(invoice.status)}</span>
+        · Total ${invoice.total} · Paid ${invoice.amountPaid} · Balance ${invoice.balanceDue}
+      </p>
+      ${invoiceItemsList(invoice.items)}
+      ${canPay ? `
+        <form class="auth-form" id="record-payment-form" novalidate style="margin-bottom:14px">
+          <label class="field"><span>Amount</span><input type="number" name="amount" min="0.01" step="0.01" max="${invoice.balanceDue}" required></label>
+          <label class="field"><span>Method</span>
+            <select name="method">
+              <option value="CASH">Cash</option>
+              <option value="CARD">Card</option>
+              <option value="BANK_TRANSFER">Bank Transfer</option>
+              <option value="MOBILE_MONEY">Mobile Money</option>
+              <option value="OTHER">Other</option>
+            </select>
+          </label>
+          <label class="field"><span>Reference (optional)</span><input type="text" name="reference"></label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="mini-button mini-button--accent">Record Payment</button>
+        </form>` : ""}
+      <h2>Payments</h2>
+      <div class="appointment-list" id="finance-payments-list">${paymentsListHtml(payments)}</div>
+    `;
+
+    const paymentForm = document.getElementById("record-payment-form");
+    if (paymentForm) {
+      const errorEl = paymentForm.querySelector("[data-error]");
+      paymentForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorEl.hidden = true;
+        const data = new FormData(paymentForm);
+        const button = paymentForm.querySelector("button[type=submit]");
+        button.disabled = true;
+        try {
+          await api(`/api/invoices/${id}/payments`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              amount: Number(data.get("amount")),
+              method: data.get("method"),
+              reference: data.get("reference") || null,
+            }),
+          });
+          loadFinanceInvoiceDetail(id);
+          loadFinanceInvoices();
+          loadFinanceReports();
+        } catch (err) {
+          errorEl.textContent = err.message;
+          errorEl.hidden = false;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    }
+
+    document.getElementById("finance-payments-list").addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action='view-receipt']");
+      if (!btn) return;
+      const card = btn.closest("[data-payment-id]");
+      viewReceipt(id, card.dataset.paymentId, card.querySelector(".receipt-slot"));
+    });
   }
 
   // ================= MAINTENANCE =================

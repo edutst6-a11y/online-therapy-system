@@ -751,6 +751,83 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 0.8rem;
 }
 
+/* ---------- Messaging ---------- */
+
+.conversation-card {
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.conversation-card:hover { border-color: var(--white-15); }
+
+.conversation-card.selected {
+  border-color: var(--accent);
+  background: rgba(143, 190, 158, 0.06);
+}
+
+.conversation-card .unread-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+
+.message-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 360px;
+  overflow-y: auto;
+  padding-right: 4px;
+  margin-bottom: 14px;
+}
+
+.message-bubble {
+  align-self: flex-start;
+  max-width: 80%;
+  border: 1px solid var(--white-08);
+  border-radius: 16px;
+  padding: 10px 14px;
+  font-size: 0.86rem;
+}
+
+.message-bubble--mine {
+  align-self: flex-end;
+  background: rgba(143, 190, 158, 0.12);
+  border-color: rgba(143, 190, 158, 0.35);
+}
+
+.message-bubble .meta {
+  color: var(--white-45);
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.message-composer {
+  display: flex;
+  gap: 8px;
+}
+
+.message-composer input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--white-15);
+  border-radius: var(--radius-pill);
+  padding: 8px 16px;
+  color: var(--white);
+  font-family: inherit;
+  font-size: 0.86rem;
+}
+
+.message-composer input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 860px) {

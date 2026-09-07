@@ -234,6 +234,26 @@
       </div>
     </div>
 
+    <!-- CLIENT + THERAPIST: secure messaging -->
+    <div class="dashboard-panel" id="messages-panel" hidden>
+      <div>
+        <h2>Messages</h2>
+        <p class="hero-sub" style="margin-bottom:14px">This is a scheduling and care-coordination channel, not an emergency service. If you're in crisis, contact local emergency services or a crisis line right away.</p>
+        <label class="field">
+          <span id="message-partner-label">Start a conversation with</span>
+          <select id="message-partner-select">
+            <option value="">Choose…</option>
+          </select>
+        </label>
+        <div class="appointment-list" id="conversation-list" style="margin-top:14px">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+      <div id="thread-wrap">
+        <p class="empty-note">Choose a conversation to view messages.</p>
+      </div>
+    </div>
+
     <!-- RECEPTIONIST: triage incoming requests -->
     <div class="dashboard-panel" id="receptionist-panel" hidden>
       <div>

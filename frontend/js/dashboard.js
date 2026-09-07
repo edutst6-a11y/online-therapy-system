@@ -132,16 +132,20 @@
       document.getElementById("client-intake-panel").hidden = false;
       document.getElementById("client-assessments-panel").hidden = false;
       document.getElementById("client-panel").hidden = false;
+      document.getElementById("messages-panel").hidden = false;
       initIntakePanel();
       initClientAssessments();
       initClientPanel();
+      initMessagesPanel(user.role);
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
       document.getElementById("clinical-notes-panel").hidden = false;
       document.getElementById("treatment-plan-panel").hidden = false;
+      document.getElementById("messages-panel").hidden = false;
       initTherapistPanel();
       initClinicalNotes();
       initTreatmentPlans();
+      initMessagesPanel(user.role);
     } else if (user.role === "RECEPTIONIST") {
       document.getElementById("receptionist-panel").hidden = false;
       initReceptionistPanel();
@@ -938,6 +942,143 @@
     }
   }
 
+  // ================= MESSAGES =================
+
+  let currentUser = null;
+  let activeConversationId = null;
+
+  function initMessagesPanel(role) {
+    const label = document.getElementById("message-partner-label");
+    label.textContent = role === "CLIENT" ? "Message your therapist" : "Message a client";
+
+    const select = document.getElementById("message-partner-select");
+    api("/api/appointments/mine")
+      .then((appts) => {
+        const seen = new Map();
+        appts.forEach((a) => {
+          if (role === "CLIENT") seen.set(a.therapistId, a.therapistName);
+          else seen.set(a.clientId, a.clientName);
+        });
+        select.innerHTML = '<option value="">Choose…</option>' +
+          [...seen.entries()].map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("");
+      })
+      .catch(() => {});
+
+    select.addEventListener("change", async () => {
+      const otherUserId = select.value;
+      if (!otherUserId) return;
+      select.value = "";
+      try {
+        const conv = await api("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ otherUserId }),
+        });
+        await loadConversations(role);
+        openConversation(conv.id, role);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+
+    document.getElementById("conversation-list").addEventListener("click", (e) => {
+      const card = e.target.closest("[data-id]");
+      if (!card) return;
+      openConversation(card.dataset.id, role);
+    });
+
+    loadConversations(role);
+  }
+
+  async function loadConversations(role) {
+    const list = document.getElementById("conversation-list");
+    try {
+      const conversations = await api("/api/conversations/mine");
+      renderList(list, conversations, "No conversations yet.", (c) => {
+        const otherName = role === "CLIENT" ? c.therapistName : c.clientName;
+        const classes = ["appointment-card", "conversation-card"];
+        if (c.id === activeConversationId) classes.push("selected");
+        return `
+          <div class="${classes.join(" ")}" data-id="${c.id}">
+            <div class="row">
+              <span class="who">${escapeHtml(otherName)}</span>
+              ${c.unreadCount > 0 ? `<span class="unread-dot" title="${c.unreadCount} unread"></span>` : ""}
+            </div>
+            <div class="when">Started ${formatWhen(c.createdAt)}</div>
+          </div>`;
+      });
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load conversations.</p>';
+    }
+  }
+
+  function renderThread(messages) {
+    const threadEl = document.getElementById("message-thread");
+    if (!threadEl) return;
+    threadEl.innerHTML = messages.length
+      ? messages.map((m) => {
+          const mine = m.senderId === currentUser.id;
+          return `
+            <div class="message-bubble${mine ? " message-bubble--mine" : ""}">
+              <div class="meta">${mine ? "You" : escapeHtml(m.senderName)} · ${formatWhen(m.sentAt)}</div>
+              <div>${escapeHtml(m.body)}</div>
+            </div>`;
+        }).join("")
+      : '<p class="empty-note">No messages yet — say hello.</p>';
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  async function openConversation(conversationId, role) {
+    activeConversationId = conversationId;
+    const wrap = document.getElementById("thread-wrap");
+    wrap.innerHTML = '<p class="empty-note">Loading…</p>';
+    let messages;
+    try {
+      messages = await api(`/api/conversations/${conversationId}/messages`);
+    } catch (_) {
+      wrap.innerHTML = '<p class="empty-note">Could not load this conversation.</p>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <h2>Conversation</h2>
+      <div class="message-thread" id="message-thread"></div>
+      <form class="message-composer" id="message-composer" novalidate>
+        <input type="text" name="body" placeholder="Write a message…" maxlength="4000" required>
+        <button type="submit" class="mini-button mini-button--accent">Send</button>
+      </form>
+      <p class="form-error" data-error hidden></p>
+    `;
+    renderThread(messages);
+
+    const composer = document.getElementById("message-composer");
+    const errorEl = wrap.querySelector("[data-error]");
+    composer.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const body = composer.body.value.trim();
+      if (!body) return;
+      const button = composer.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        await api(`/api/conversations/${conversationId}/messages`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ body }),
+        });
+        composer.reset();
+        renderThread(await api(`/api/conversations/${conversationId}/messages`));
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+
+    loadConversations(role);
+  }
+
   // ================= MAINTENANCE =================
 
   function initMaintenancePanel() {
@@ -1024,6 +1165,9 @@
   }
 
   loadCurrentUser().then((user) => {
-    if (user) renderUser(user);
+    if (user) {
+      currentUser = user;
+      renderUser(user);
+    }
   });
 })();

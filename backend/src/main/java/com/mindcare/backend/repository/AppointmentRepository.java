@@ -11,4 +11,6 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     List<Appointment> findByClientIdOrderByScheduledAtDesc(UUID clientId);
 
     List<Appointment> findByTherapistIdOrderByScheduledAtDesc(UUID therapistId);
+
+    boolean existsByClientIdAndTherapistId(UUID clientId, UUID therapistId);
 }

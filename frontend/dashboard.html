@@ -47,6 +47,49 @@
       </div>
     </section>
 
+    <!-- CLIENT: intake form -->
+    <div class="dashboard-panel" id="client-intake-panel" hidden>
+      <div>
+        <h2>Your intake</h2>
+        <p class="hero-sub" style="margin-bottom:14px">A few details help your therapist prepare. This is only visible to your care team, never to front-desk staff.</p>
+        <form class="auth-form" id="intake-form" novalidate>
+          <label class="field">
+            <span>Date of birth</span>
+            <input type="date" name="dateOfBirth">
+          </label>
+          <label class="field">
+            <span>Phone</span>
+            <input type="tel" name="phone" placeholder="+1 555 000 0000">
+          </label>
+          <label class="field">
+            <span>Emergency contact name</span>
+            <input type="text" name="emergencyContactName">
+          </label>
+          <label class="field">
+            <span>Emergency contact phone</span>
+            <input type="tel" name="emergencyContactPhone">
+          </label>
+          <label class="field">
+            <span>What brings you to MindCare?</span>
+            <input type="text" name="reasonForSeekingCare" placeholder="A short summary is fine">
+          </label>
+          <label class="field" style="flex-direction:row;align-items:center;gap:8px">
+            <input type="checkbox" name="consentGiven" id="intake-consent" style="width:auto">
+            <span>I consent to MindCare storing this information to coordinate my care.</span>
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button">
+            <span>Save Intake</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+      <div>
+        <h2>Status</h2>
+        <p class="hero-sub" id="intake-status">Loading…</p>
+      </div>
+    </div>
+
     <!-- CLIENT: book a session, track your own sessions -->
     <div class="dashboard-panel" id="client-panel" hidden>
       <div>

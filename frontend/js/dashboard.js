@@ -129,7 +129,9 @@
     document.getElementById("panel-text").textContent = ROLE_COPY[user.role] || "";
 
     if (user.role === "CLIENT") {
+      document.getElementById("client-intake-panel").hidden = false;
       document.getElementById("client-panel").hidden = false;
+      initIntakePanel();
       initClientPanel();
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
@@ -144,6 +146,56 @@
   }
 
   document.getElementById("logout-btn").addEventListener("click", clearSessionAndRedirect);
+
+  // ================= CLIENT INTAKE =================
+
+  function initIntakePanel() {
+    const form = document.getElementById("intake-form");
+    const errorEl = form.querySelector("[data-error]");
+    const statusEl = document.getElementById("intake-status");
+
+    api("/api/intake/mine")
+      .then((intake) => {
+        form.dateOfBirth.value = intake.dateOfBirth || "";
+        form.phone.value = intake.phone || "";
+        form.emergencyContactName.value = intake.emergencyContactName || "";
+        form.emergencyContactPhone.value = intake.emergencyContactPhone || "";
+        form.reasonForSeekingCare.value = intake.reasonForSeekingCare || "";
+        form.consentGiven.checked = intake.consentGiven;
+        statusEl.textContent = "Saved " + formatWhen(intake.updatedAt) + ".";
+      })
+      .catch(() => {
+        statusEl.textContent = "Not submitted yet.";
+      });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const data = new FormData(form);
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        const intake = await api("/api/intake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dateOfBirth: data.get("dateOfBirth") || null,
+            phone: data.get("phone") || null,
+            emergencyContactName: data.get("emergencyContactName") || null,
+            emergencyContactPhone: data.get("emergencyContactPhone") || null,
+            reasonForSeekingCare: data.get("reasonForSeekingCare") || null,
+            consentGiven: form.consentGiven.checked,
+          }),
+        });
+        statusEl.textContent = "Saved " + formatWhen(intake.updatedAt) + ".";
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
 
   // ================= CLIENT =================
 

@@ -1,6 +1,7 @@
 package com.mindcare.backend.bootstrap;
 
 import com.mindcare.backend.model.AppointmentStatus;
+import com.mindcare.backend.model.AuditResult;
 import com.mindcare.backend.model.InvoiceStatus;
 import com.mindcare.backend.model.NotificationType;
 import com.mindcare.backend.model.PaymentMethod;
@@ -41,6 +42,7 @@ public class EnumConstraintFixupRunner implements CommandLineRunner {
         resync("notifications", "type", "notifications_type_check", NotificationType.values());
         resync("invoices", "status", "invoices_status_check", InvoiceStatus.values());
         resync("payments", "method", "payments_method_check", PaymentMethod.values());
+        resync("audit_logs", "result", "audit_logs_result_check", AuditResult.values());
     }
 
     private void resync(String table, String column, String constraintName, Enum<?>[] values) {

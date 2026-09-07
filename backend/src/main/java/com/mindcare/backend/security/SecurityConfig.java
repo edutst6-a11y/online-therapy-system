@@ -1,5 +1,7 @@
 package com.mindcare.backend.security;
 
+import com.mindcare.backend.audit.AuditLoggingFilter;
+import com.mindcare.backend.audit.AuditService;
 import com.mindcare.backend.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -37,7 +39,14 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthFilter jwtAuthFilter) throws Exception {
+    public AuditLoggingFilter auditLoggingFilter(AuditService auditService) {
+        return new AuditLoggingFilter(auditService);
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http, JwtAuthFilter jwtAuthFilter, AuditLoggingFilter auditLoggingFilter
+    ) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
@@ -55,7 +64,8 @@ public class SecurityConfig {
                         .accessDeniedHandler((request, response, accessDeniedException) ->
                                 writeJsonError(response, 403, "You don't have permission to do that"))
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(auditLoggingFilter, JwtAuthFilter.class);
 
         return http.build();
     }

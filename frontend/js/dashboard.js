@@ -1679,6 +1679,7 @@
   function initMaintenancePanel() {
     loadClinicOverview();
     loadMaintenanceAppointments();
+    loadAuditLog();
 
     const staffForm = document.getElementById("staff-form");
     staffForm.addEventListener("submit", async (event) => {
@@ -1756,6 +1757,25 @@
       }));
     } catch (_) {
       container.innerHTML = '<p class="empty-note">Could not load appointments.</p>';
+    }
+  }
+
+  async function loadAuditLog() {
+    const list = document.getElementById("audit-log-list");
+    try {
+      const entries = await api("/api/audit-logs?size=50");
+      renderList(list, entries, "No activity recorded yet.", (e) => `
+        <div class="appointment-card">
+          <div class="row">
+            <span class="who">${escapeHtml(e.action)}</span>
+            <span class="status-badge ${e.result === "SUCCESS" ? "status-badge--approved" : "status-badge--declined"}">${e.result.toLowerCase()}</span>
+          </div>
+          <div class="when">${escapeHtml(e.actorName)} · ${formatWhen(e.createdAt)}</div>
+          ${e.recordType ? `<div class="when">${escapeHtml(e.recordType)}${e.recordId ? " · " + escapeHtml(e.recordId) : ""}</div>` : ""}
+          ${e.detail ? `<div class="when">${escapeHtml(e.detail)}</div>` : ""}
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load the audit log.</p>';
     }
   }
 

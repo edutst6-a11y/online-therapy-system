@@ -35,6 +35,9 @@
 
     <nav class="floating-nav">
       <a class="nav-item" href="index.html">Site</a>
+      <select class="nav-item" id="role-switcher" hidden>
+        <option value="">Acting as…</option>
+      </select>
       <div class="notif-wrap">
         <button class="nav-item notif-bell" id="notif-bell" type="button" aria-label="Notifications">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
@@ -429,7 +432,7 @@
         <div class="user-table-wrap">
           <table class="user-table">
             <thead>
-              <tr><th>Name</th><th>Email</th><th>Role</th></tr>
+              <tr><th>Name</th><th>Email</th><th>Role</th><th id="super-admin-col" hidden>Super Admin</th></tr>
             </thead>
             <tbody id="user-table-body"></tbody>
           </table>

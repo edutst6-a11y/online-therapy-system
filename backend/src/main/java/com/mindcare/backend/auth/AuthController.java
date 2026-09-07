@@ -4,6 +4,7 @@ import com.mindcare.backend.audit.AuditService;
 import com.mindcare.backend.auth.dto.AuthResponse;
 import com.mindcare.backend.auth.dto.LoginRequest;
 import com.mindcare.backend.auth.dto.RegisterRequest;
+import com.mindcare.backend.auth.dto.SetActiveRoleRequest;
 import com.mindcare.backend.auth.dto.UserResponse;
 import com.mindcare.backend.model.AuditResult;
 import com.mindcare.backend.model.Role;
@@ -13,9 +14,12 @@ import com.mindcare.backend.security.JwtService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -89,6 +93,25 @@ public class AuthController {
     /** Returns the caller's identity as it stands in the database right now. */
     @GetMapping("/api/auth/me")
     public UserResponse me(@AuthenticationPrincipal User currentUser) {
+        return UserResponse.from(currentUser);
+    }
+
+    /**
+     * Only a super admin can call this — everyone else's role comes exclusively
+     * from their real `role` column. Switching doesn't issue a new token; the JWT
+     * only ever carries a user id, so the next request re-derives the (now
+     * switched) effective role fresh from the database, same as always.
+     */
+    @PatchMapping("/api/auth/active-role")
+    @Transactional
+    public UserResponse setActiveRole(@RequestBody SetActiveRoleRequest request, @AuthenticationPrincipal User currentUser) {
+        if (!currentUser.isSuperAdmin()) {
+            throw new AccessDeniedException("Only a super admin can switch roles");
+        }
+        currentUser.setActiveRole(request.role());
+        userRepository.save(currentUser);
+        auditService.record(currentUser, currentUser.getEmail(), "SWITCH_ACTIVE_ROLE", "User", currentUser.getId().toString(),
+                "-", AuditResult.SUCCESS, "Now acting as " + currentUser.effectiveRole());
         return UserResponse.from(currentUser);
     }
 }

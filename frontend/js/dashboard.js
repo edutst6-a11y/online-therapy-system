@@ -1681,6 +1681,26 @@
     loadMaintenanceAppointments();
     loadAuditLog();
 
+    document.getElementById("user-table-body").addEventListener("click", async (e) => {
+      const btn = e.target.closest("[data-action='grant-super-admin'], [data-action='revoke-super-admin']");
+      if (!btn) return;
+      const id = btn.closest("[data-id]").dataset.id;
+      const grant = btn.dataset.action === "grant-super-admin";
+      if (!confirm(grant ? "Grant super-admin access to this account?" : "Revoke super-admin access from this account?")) return;
+      btn.disabled = true;
+      try {
+        await api(`/api/staff/${id}/super-admin`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ superAdmin: grant }),
+        });
+        loadClinicOverview();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+      }
+    });
+
     const staffForm = document.getElementById("staff-form");
     staffForm.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1732,6 +1752,9 @@
         statRow.appendChild(tile);
       });
 
+      const superAdminCol = document.getElementById("super-admin-col");
+      superAdminCol.hidden = !currentUser.superAdmin;
+
       const body = document.getElementById("user-table-body");
       body.innerHTML = "";
       users.forEach((u) => {
@@ -1739,7 +1762,12 @@
         row.innerHTML =
           "<td>" + escapeHtml(u.fullName) + "</td>" +
           "<td>" + escapeHtml(u.email) + "</td>" +
-          "<td>" + ROLE_LABEL[u.role] + "</td>";
+          "<td>" + ROLE_LABEL[u.role] + "</td>" +
+          (currentUser.superAdmin
+            ? `<td data-id="${u.id}">${u.superAdmin
+                ? '<button class="mini-button mini-button--danger" data-action="revoke-super-admin">Revoke</button>'
+                : (u.id !== currentUser.id ? '<button class="mini-button" data-action="grant-super-admin">Grant</button>' : "")}</td>`
+            : "");
         body.appendChild(row);
       });
     } catch (_) {
@@ -1779,11 +1807,37 @@
     }
   }
 
+  // ================= SUPER ADMIN ROLE SWITCHER =================
+
+  function initRoleSwitcher(user) {
+    if (!user.superAdmin) return;
+    const select = document.getElementById("role-switcher");
+    const roles = ["CLIENT", "THERAPIST", "CLINICAL_SUPERVISOR", "RECEPTIONIST", "FINANCE", "MAINTENANCE"];
+    select.innerHTML = roles.map((r) => `<option value="${r}">Acting as ${ROLE_LABEL[r]}</option>`).join("");
+    select.value = user.role;
+    select.hidden = false;
+    select.addEventListener("change", async () => {
+      const chosen = select.value;
+      try {
+        await api("/api/auth/active-role", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role: chosen === user.trueRole ? null : chosen }),
+        });
+        window.location.reload();
+      } catch (err) {
+        alert(err.message);
+        select.value = user.role;
+      }
+    });
+  }
+
   loadCurrentUser().then((user) => {
     if (user) {
       currentUser = user;
       renderUser(user);
       initNotifications();
+      initRoleSwitcher(user);
     }
   });
 })();

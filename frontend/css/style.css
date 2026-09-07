@@ -235,6 +235,13 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ---------- Notifications ---------- */
 
+#role-switcher {
+  border: 1px solid var(--white-15);
+  background: rgba(255, 255, 255, 0.03);
+  font-family: inherit;
+  outline: none;
+}
+
 .notif-bell {
   display: inline-flex;
   align-items: center;

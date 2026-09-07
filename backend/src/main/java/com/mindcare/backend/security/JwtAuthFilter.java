@@ -47,7 +47,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 userRepository.findById(userId.get())
                         .filter(User::isEnabled)
                         .ifPresent(user -> {
-                            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                            var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.effectiveRole().name()));
                             var authentication = new UsernamePasswordAuthenticationToken(user, null, authorities);
                             SecurityContextHolder.getContext().setAuthentication(authentication);
                         });

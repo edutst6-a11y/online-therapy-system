@@ -36,6 +36,18 @@ public class User {
     @Column(nullable = false)
     private boolean enabled = true;
 
+    /**
+     * A super admin can switch which role they operate the system as (activeRole)
+     * without their real underlying role ever changing, and can grant super-admin
+     * status to other accounts. Ordinary users never have this set.
+     */
+    @Column(nullable = false, columnDefinition = "boolean not null default false")
+    private boolean superAdmin = false;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20)
+    private Role activeRole;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -104,5 +116,29 @@ public class User {
 
     public UUID getCreatedBy() {
         return createdBy;
+    }
+
+    public boolean isSuperAdmin() {
+        return superAdmin;
+    }
+
+    public void setSuperAdmin(boolean superAdmin) {
+        this.superAdmin = superAdmin;
+        if (!superAdmin) {
+            this.activeRole = null;
+        }
+    }
+
+    public Role getActiveRole() {
+        return activeRole;
+    }
+
+    public void setActiveRole(Role activeRole) {
+        this.activeRole = activeRole;
+    }
+
+    /** The role this account is currently operating as — a super admin's activeRole if set, else their real role. */
+    public Role effectiveRole() {
+        return superAdmin && activeRole != null ? activeRole : role;
     }
 }

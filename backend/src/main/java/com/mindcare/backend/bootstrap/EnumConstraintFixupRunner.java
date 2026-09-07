@@ -38,6 +38,7 @@ public class EnumConstraintFixupRunner implements CommandLineRunner {
     @Transactional
     public void run(String... args) {
         resync("users", "role", "users_role_check", Role.values());
+        resync("users", "active_role", "users_active_role_check", Role.values());
         resync("appointments", "status", "appointments_status_check", AppointmentStatus.values());
         resync("notifications", "type", "notifications_type_check", NotificationType.values());
         resync("invoices", "status", "invoices_status_check", InvoiceStatus.values());

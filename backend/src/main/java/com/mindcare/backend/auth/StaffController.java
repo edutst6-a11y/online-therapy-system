@@ -1,6 +1,7 @@
 package com.mindcare.backend.auth;
 
 import com.mindcare.backend.auth.dto.CreateStaffRequest;
+import com.mindcare.backend.auth.dto.SetSuperAdminRequest;
 import com.mindcare.backend.auth.dto.UserResponse;
 import com.mindcare.backend.model.Role;
 import com.mindcare.backend.model.User;
@@ -11,6 +12,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +21,9 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Account provisioning reachable only by an authenticated MAINTENANCE user.
@@ -68,5 +73,15 @@ public class StaffController {
     @GetMapping
     public List<UserResponse> listUsers() {
         return userRepository.findAll().stream().map(UserResponse::from).toList();
+    }
+
+    /** "Invite other members to become super admin" — restricted to existing super admins. */
+    @PatchMapping("/{id}/super-admin")
+    @PreAuthorize("hasRole('MAINTENANCE') and authentication.principal.superAdmin")
+    public UserResponse setSuperAdmin(@PathVariable UUID id, @RequestBody SetSuperAdminRequest request) {
+        User target = userRepository.findById(id).orElseThrow(() -> new NoSuchElementException("User not found"));
+        target.setSuperAdmin(request.superAdmin());
+        userRepository.save(target);
+        return UserResponse.from(target);
     }
 }

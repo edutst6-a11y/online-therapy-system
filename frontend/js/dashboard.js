@@ -137,7 +137,9 @@
       initClientPanel();
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
+      document.getElementById("clinical-notes-panel").hidden = false;
       initTherapistPanel();
+      initClinicalNotes();
     } else if (user.role === "RECEPTIONIST") {
       document.getElementById("receptionist-panel").hidden = false;
       initReceptionistPanel();
@@ -521,11 +523,14 @@
   }
 
   function populateClientOptions(appointments) {
-    const select = document.getElementById("assign-client-select");
     const seen = new Map();
     appointments.forEach((a) => seen.set(a.clientId, a.clientName));
-    select.innerHTML = '<option value="">Choose a client…</option>' +
+    const optionsHtml = '<option value="">Choose a client…</option>' +
       [...seen.entries()].map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("");
+    ["assign-client-select", "notes-client-select"].forEach((elId) => {
+      const el = document.getElementById(elId);
+      if (el) el.innerHTML = optionsHtml;
+    });
   }
 
   async function loadTherapistSlots() {
@@ -569,6 +574,145 @@
     } catch (_) {
       container.innerHTML = '<p class="empty-note">Could not load your sessions.</p>';
     }
+  }
+
+  // ================= CLINICAL NOTES =================
+
+  const NOTE_FIELDS = [
+    ["sessionType", "Session type"],
+    ["presentingConcerns", "Presenting concerns"],
+    ["clinicalObservations", "Clinical observations"],
+    ["interventions", "Interventions"],
+    ["clientResponse", "Client response"],
+    ["riskAssessment", "Risk / safety assessment"],
+    ["plan", "Plan"],
+    ["followUp", "Follow-up"],
+  ];
+
+  let notesSelectedClientId = null;
+
+  function initClinicalNotes() {
+    const select = document.getElementById("notes-client-select");
+    const newNoteBtn = document.getElementById("new-note-btn");
+
+    select.addEventListener("change", () => {
+      notesSelectedClientId = select.value || null;
+      newNoteBtn.disabled = !notesSelectedClientId;
+      document.getElementById("note-form-wrap").innerHTML = "";
+      if (notesSelectedClientId) {
+        loadNotesForClient(notesSelectedClientId);
+      } else {
+        document.getElementById("clinical-notes-list").innerHTML = '<p class="empty-note">Choose a client to see their notes.</p>';
+      }
+    });
+
+    newNoteBtn.addEventListener("click", () => {
+      if (notesSelectedClientId) openNoteForm(null, notesSelectedClientId);
+    });
+
+    document.getElementById("clinical-notes-list").addEventListener("click", async (e) => {
+      const card = e.target.closest("[data-id]");
+      if (!card) return;
+      const id = card.dataset.id;
+
+      if (e.target.closest("[data-action='edit']")) {
+        const detail = await api(`/api/clinical-notes/${id}`);
+        openNoteForm(detail, notesSelectedClientId);
+      } else if (e.target.closest("[data-action='sign']")) {
+        e.target.disabled = true;
+        try {
+          await api(`/api/clinical-notes/${id}/sign`, { method: "PATCH" });
+          loadNotesForClient(notesSelectedClientId);
+        } catch (err) {
+          alert(err.message);
+          e.target.disabled = false;
+        }
+      } else if (e.target.closest("[data-action='amend']")) {
+        e.target.disabled = true;
+        try {
+          await api(`/api/clinical-notes/${id}/amend`, { method: "POST" });
+          loadNotesForClient(notesSelectedClientId);
+        } catch (err) {
+          alert(err.message);
+          e.target.disabled = false;
+        }
+      }
+    });
+  }
+
+  async function loadNotesForClient(clientId) {
+    const list = document.getElementById("clinical-notes-list");
+    list.innerHTML = '<p class="empty-note">Loading…</p>';
+    try {
+      const notes = await api(`/api/clinical-notes/client/${clientId}`);
+      renderList(list, notes, "No notes yet for this client.", (n) => `
+        <div class="appointment-card" data-id="${n.id}">
+          <div class="row">
+            <span class="who">${escapeHtml(n.sessionType || "Untitled session")}</span>
+            <span class="status-badge ${n.status === "SIGNED" ? "status-badge--approved" : "status-badge--pending"}">${n.status.toLowerCase()}</span>
+          </div>
+          <div class="when">${formatWhen(n.createdAt)}${n.amendsNoteId ? " · amendment" : ""}</div>
+          <div class="actions">
+            ${n.status === "DRAFT"
+              ? '<button class="mini-button" data-action="edit">Edit</button><button class="mini-button mini-button--accent" data-action="sign">Sign</button>'
+              : '<button class="mini-button" data-action="amend">Amend</button>'}
+          </div>
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load notes.</p>';
+    }
+  }
+
+  function openNoteForm(note, clientId) {
+    const wrap = document.getElementById("note-form-wrap");
+    wrap.innerHTML = `
+      <h2>${note ? "Edit draft" : "New note"}</h2>
+      <form class="auth-form" id="note-form" novalidate>
+        ${NOTE_FIELDS.map(([key, label]) => `
+          <label class="field">
+            <span>${label}</span>
+            <input type="text" name="${key}" value="${note ? escapeHtml(note[key] || "") : ""}">
+          </label>`).join("")}
+        <p class="form-error" data-error hidden></p>
+        <button type="submit" class="pill-button">
+          <span>Save Draft</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>`;
+
+    const form = document.getElementById("note-form");
+    const errorEl = form.querySelector("[data-error]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const data = new FormData(form);
+      const content = {};
+      NOTE_FIELDS.forEach(([key]) => { content[key] = data.get(key) || null; });
+
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        if (note) {
+          await api(`/api/clinical-notes/${note.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(content),
+          });
+        } else {
+          await api("/api/clinical-notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ clientId, content }),
+          });
+        }
+        wrap.innerHTML = "";
+        loadNotesForClient(clientId);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        button.disabled = false;
+      }
+    });
   }
 
   // ================= RECEPTIONIST =================

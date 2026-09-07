@@ -189,6 +189,24 @@
       </div>
     </div>
 
+    <!-- THERAPIST: clinical notes (never shown to Client or Receptionist) -->
+    <div class="dashboard-panel" id="clinical-notes-panel" hidden>
+      <div>
+        <h2>Clinical notes</h2>
+        <label class="field">
+          <span>Client</span>
+          <select id="notes-client-select">
+            <option value="">Choose a client…</option>
+          </select>
+        </label>
+        <button type="button" class="mini-button mini-button--accent" id="new-note-btn" style="margin-top:8px" disabled>+ New Note</button>
+        <div class="appointment-list" id="clinical-notes-list" style="margin-top:14px">
+          <p class="empty-note">Choose a client to see their notes.</p>
+        </div>
+      </div>
+      <div id="note-form-wrap"></div>
+    </div>
+
     <!-- RECEPTIONIST: triage incoming requests -->
     <div class="dashboard-panel" id="receptionist-panel" hidden>
       <div>

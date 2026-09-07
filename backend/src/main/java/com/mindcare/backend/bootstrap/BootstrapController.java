@@ -1,6 +1,5 @@
 package com.mindcare.backend.bootstrap;
 
-import com.mindcare.backend.auth.EmailAlreadyRegisteredException;
 import com.mindcare.backend.auth.dto.AuthResponse;
 import com.mindcare.backend.model.Role;
 import com.mindcare.backend.model.User;
@@ -19,9 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Creates the very first MAINTENANCE account when the database has none.
+ * Establishes the very first MAINTENANCE account when the database has none.
+ * If the given email already belongs to an existing account (e.g. someone
+ * self-registered as a client before being promoted), that account is
+ * promoted in place — role and password updated — rather than rejected.
  * Deliberately requires no auth (there's nobody to authenticate as yet), but
- * is only ever usable once — the moment a MAINTENANCE account exists, this
+ * is only ever usable once — the moment any MAINTENANCE account exists, this
  * permanently returns 409 and does nothing. This exists so the first admin
  * can be provisioned without needing shell/dashboard access to the deployed
  * environment.
@@ -54,17 +56,21 @@ public class BootstrapController {
         }
 
         String email = request.email().trim().toLowerCase();
-        if (userRepository.existsByEmailIgnoreCase(email)) {
-            throw new EmailAlreadyRegisteredException();
-        }
 
-        User user = new User(
-                request.fullName().trim(),
-                email,
-                passwordEncoder.encode(request.password()),
-                Role.MAINTENANCE,
-                null
-        );
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user != null) {
+            user.setFullName(request.fullName().trim());
+            user.setPasswordHash(passwordEncoder.encode(request.password()));
+            user.setRole(Role.MAINTENANCE);
+        } else {
+            user = new User(
+                    request.fullName().trim(),
+                    email,
+                    passwordEncoder.encode(request.password()),
+                    Role.MAINTENANCE,
+                    null
+            );
+        }
         userRepository.save(user);
 
         String token = jwtService.issueToken(user.getId());

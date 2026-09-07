@@ -133,19 +133,23 @@
       document.getElementById("client-assessments-panel").hidden = false;
       document.getElementById("client-panel").hidden = false;
       document.getElementById("messages-panel").hidden = false;
+      document.getElementById("documents-panel").hidden = false;
       initIntakePanel();
       initClientAssessments();
       initClientPanel();
       initMessagesPanel(user.role);
+      initDocumentsPanel(user.role);
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
       document.getElementById("clinical-notes-panel").hidden = false;
       document.getElementById("treatment-plan-panel").hidden = false;
       document.getElementById("messages-panel").hidden = false;
+      document.getElementById("documents-panel").hidden = false;
       initTherapistPanel();
       initClinicalNotes();
       initTreatmentPlans();
       initMessagesPanel(user.role);
+      initDocumentsPanel(user.role);
     } else if (user.role === "RECEPTIONIST") {
       document.getElementById("receptionist-panel").hidden = false;
       initReceptionistPanel();
@@ -634,7 +638,7 @@
     appointments.forEach((a) => seen.set(a.clientId, a.clientName));
     const optionsHtml = '<option value="">Choose a client…</option>' +
       [...seen.entries()].map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("");
-    ["assign-client-select", "notes-client-select", "plan-client-select"].forEach((elId) => {
+    ["assign-client-select", "notes-client-select", "plan-client-select", "documents-client-select"].forEach((elId) => {
       const el = document.getElementById(elId);
       if (el) el.innerHTML = optionsHtml;
     });
@@ -1040,6 +1044,143 @@
       }));
     } catch (_) {
       pendingEl.innerHTML = '<p class="empty-note">Could not load appointments.</p>';
+    }
+  }
+
+  // ================= DOCUMENTS =================
+
+  function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = () => reject(new Error("Could not read that file"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function downloadDocument(id, fileName) {
+    try {
+      const res = await fetch(API_BASE + "/api/documents/" + id, { headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (_) {
+      alert("Could not download that file.");
+    }
+  }
+
+  let documentsSelectedClientId = null;
+
+  function initDocumentsPanel(role) {
+    const contextEl = document.getElementById("documents-context");
+    const clientField = document.getElementById("documents-client-field");
+    const form = document.getElementById("document-upload-form");
+    const submitBtn = document.getElementById("document-upload-submit");
+    const errorEl = form.querySelector("[data-error]");
+    const list = document.getElementById("documents-list");
+
+    if (role === "CLIENT") {
+      contextEl.textContent = "Files attached to your record — consent forms, referral letters, and anything you'd like your care team to have.";
+      clientField.hidden = true;
+      loadDocuments(role, null);
+    } else {
+      contextEl.textContent = "Upload and review files attached to a client's record.";
+      clientField.hidden = false;
+      submitBtn.disabled = true;
+      document.getElementById("documents-client-select").addEventListener("change", (e) => {
+        documentsSelectedClientId = e.target.value || null;
+        submitBtn.disabled = !documentsSelectedClientId;
+        if (documentsSelectedClientId) {
+          loadDocuments(role, documentsSelectedClientId);
+        } else {
+          list.innerHTML = '<p class="empty-note">Choose a client to see their files.</p>';
+        }
+      });
+      list.innerHTML = '<p class="empty-note">Choose a client to see their files.</p>';
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const file = form.querySelector("input[type=file]").files[0];
+      if (!file) return;
+      submitBtn.disabled = true;
+      try {
+        const base64Content = await readFileAsBase64(file);
+        const body = {
+          fileName: file.name,
+          contentType: file.type || "application/octet-stream",
+          base64Content,
+          description: new FormData(form).get("description") || null,
+        };
+        if (role !== "CLIENT") body.clientId = documentsSelectedClientId;
+        await api("/api/documents", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        form.reset();
+        loadDocuments(role, role === "CLIENT" ? null : documentsSelectedClientId);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        submitBtn.disabled = role !== "CLIENT" && !documentsSelectedClientId;
+      }
+    });
+
+    list.addEventListener("click", async (e) => {
+      const card = e.target.closest("[data-id]");
+      if (!card) return;
+      const id = card.dataset.id;
+      if (e.target.closest("[data-action='download']")) {
+        downloadDocument(id, card.dataset.filename);
+      } else if (e.target.closest("[data-action='delete']")) {
+        if (!confirm("Remove this document?")) return;
+        try {
+          await api(`/api/documents/${id}`, { method: "DELETE" });
+          loadDocuments(role, role === "CLIENT" ? null : documentsSelectedClientId);
+        } catch (err) {
+          alert(err.message);
+        }
+      }
+    });
+  }
+
+  async function loadDocuments(role, clientId) {
+    const list = document.getElementById("documents-list");
+    list.innerHTML = '<p class="empty-note">Loading…</p>';
+    try {
+      const path = role === "CLIENT" ? "/api/documents/mine" : `/api/documents/client/${clientId}`;
+      const docs = await api(path);
+      renderList(list, docs, "No documents yet.", (d) => `
+        <div class="appointment-card" data-id="${d.id}" data-filename="${escapeHtml(d.fileName)}">
+          <div class="row">
+            <span class="who">${escapeHtml(d.fileName)}</span>
+            <span class="when">${formatFileSize(d.fileSize)}</span>
+          </div>
+          ${d.description ? `<div class="when">${escapeHtml(d.description)}</div>` : ""}
+          <div class="when">Uploaded by ${escapeHtml(d.uploadedByName)} · ${formatWhen(d.createdAt)}</div>
+          <div class="actions">
+            <button class="mini-button mini-button--accent" data-action="download">Download</button>
+            ${d.uploadedById === currentUser.id ? '<button class="mini-button mini-button--danger" data-action="delete">Delete</button>' : ""}
+          </div>
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load documents.</p>';
     }
   }
 

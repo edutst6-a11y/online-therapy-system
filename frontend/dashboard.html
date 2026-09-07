@@ -271,6 +271,41 @@
       </div>
     </div>
 
+    <!-- CLIENT + THERAPIST: documents -->
+    <div class="dashboard-panel" id="documents-panel" hidden>
+      <div>
+        <h2>Documents</h2>
+        <p class="hero-sub" id="documents-context" style="margin-bottom:14px"></p>
+        <label class="field" id="documents-client-field" hidden>
+          <span>Client</span>
+          <select id="documents-client-select">
+            <option value="">Choose a client…</option>
+          </select>
+        </label>
+        <form class="auth-form" id="document-upload-form" novalidate style="margin-top:10px">
+          <label class="field">
+            <span>File</span>
+            <input type="file" name="file" required>
+          </label>
+          <label class="field">
+            <span>Description (optional)</span>
+            <input type="text" name="description" placeholder="What is this?">
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button" id="document-upload-submit">
+            <span>Upload</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+      <div>
+        <h2>Files</h2>
+        <div class="appointment-list" id="documents-list">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+    </div>
+
     <!-- RECEPTIONIST: triage incoming requests -->
     <div class="dashboard-panel" id="receptionist-panel" hidden>
       <div>

@@ -8,8 +8,10 @@ import com.mindcare.backend.model.AssessmentAnswer;
 import com.mindcare.backend.model.AssessmentQuestion;
 import com.mindcare.backend.model.AssessmentResponse;
 import com.mindcare.backend.model.AssessmentTemplate;
+import com.mindcare.backend.model.NotificationType;
 import com.mindcare.backend.model.Role;
 import com.mindcare.backend.model.User;
+import com.mindcare.backend.notification.NotificationService;
 import com.mindcare.backend.repository.AssessmentResponseRepository;
 import com.mindcare.backend.repository.AssessmentTemplateRepository;
 import com.mindcare.backend.repository.UserRepository;
@@ -40,15 +42,18 @@ public class AssessmentResponseController {
     private final AssessmentResponseRepository responseRepository;
     private final AssessmentTemplateRepository templateRepository;
     private final UserRepository userRepository;
+    private final NotificationService notificationService;
 
     public AssessmentResponseController(
             AssessmentResponseRepository responseRepository,
             AssessmentTemplateRepository templateRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            NotificationService notificationService
     ) {
         this.responseRepository = responseRepository;
         this.templateRepository = templateRepository;
         this.userRepository = userRepository;
+        this.notificationService = notificationService;
     }
 
     @PostMapping
@@ -64,6 +69,8 @@ public class AssessmentResponseController {
 
         AssessmentResponse response = new AssessmentResponse(template, client, assignedBy);
         responseRepository.save(response);
+        notificationService.notify(client, NotificationType.ASSESSMENT_ASSIGNED,
+                "New assessment assigned", assignedBy.getFullName() + " assigned you \"" + template.getName() + "\".", response.getId());
         return ResponseSummary.from(response);
     }
 

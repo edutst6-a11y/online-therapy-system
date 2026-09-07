@@ -35,8 +35,25 @@
 
     <nav class="floating-nav">
       <a class="nav-item" href="index.html">Site</a>
+      <div class="notif-wrap">
+        <button class="nav-item notif-bell" id="notif-bell" type="button" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="notif-badge" id="notif-badge" hidden>0</span>
+        </button>
+      </div>
       <button class="nav-item nav-pill--outline" id="logout-btn" type="button">Sign Out</button>
     </nav>
+
+    <!-- Rendered outside the nav so it isn't clipped by the nav's own scroll/backdrop-filter containment. -->
+    <div class="notif-dropdown" id="notif-dropdown" hidden>
+      <div class="notif-dropdown-header">
+        <span>Notifications</span>
+        <button class="mini-button" id="notif-mark-all" type="button">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notif-list">
+        <p class="empty-note">No notifications.</p>
+      </div>
+    </div>
 
     <section class="screen active" id="screen-dashboard">
       <div class="organic-blob" aria-hidden="true"></div>

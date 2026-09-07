@@ -157,6 +157,107 @@
 
   document.getElementById("logout-btn").addEventListener("click", clearSessionAndRedirect);
 
+  // ================= NOTIFICATIONS =================
+
+  const NOTIF_TYPE_LABEL = {
+    APPOINTMENT_REQUESTED: "Session request",
+    APPOINTMENT_APPROVED: "Session approved",
+    APPOINTMENT_DECLINED: "Session declined",
+    APPOINTMENT_RESCHEDULED: "Session rescheduled",
+    APPOINTMENT_CANCELLED: "Session cancelled",
+    APPOINTMENT_COMPLETED: "Session completed",
+    NEW_MESSAGE: "New message",
+    ASSESSMENT_ASSIGNED: "Assessment assigned",
+  };
+
+  function initNotifications() {
+    const bell = document.getElementById("notif-bell");
+    const dropdown = document.getElementById("notif-dropdown");
+    const badge = document.getElementById("notif-badge");
+    const list = document.getElementById("notif-list");
+    const markAllBtn = document.getElementById("notif-mark-all");
+
+    function setBadge(count) {
+      if (count > 0) {
+        badge.textContent = count > 99 ? "99+" : String(count);
+        badge.hidden = false;
+      } else {
+        badge.hidden = true;
+      }
+    }
+
+    async function refreshBadge() {
+      try {
+        const { count } = await api("/api/notifications/unread-count");
+        setBadge(count);
+      } catch (_) {
+        /* leave badge as-is */
+      }
+    }
+
+    async function loadList() {
+      list.innerHTML = '<p class="empty-note">Loading…</p>';
+      try {
+        const notifications = await api("/api/notifications/mine");
+        renderList(list, notifications, "No notifications yet.", (n) => `
+          <div class="notif-item${n.readAt ? "" : " unread"}" data-id="${n.id}">
+            <div class="notif-title">${escapeHtml(NOTIF_TYPE_LABEL[n.type] || n.title)}</div>
+            <div class="notif-body">${escapeHtml(n.body)}</div>
+            <div class="notif-time">${formatWhen(n.createdAt)}</div>
+          </div>`);
+      } catch (_) {
+        list.innerHTML = '<p class="empty-note">Could not load notifications.</p>';
+      }
+    }
+
+    function positionDropdown() {
+      const bellRect = bell.getBoundingClientRect();
+      const stageRect = document.querySelector(".stage").getBoundingClientRect();
+      dropdown.style.top = (bellRect.bottom - stageRect.top + 10) + "px";
+      dropdown.style.left = (bellRect.left - stageRect.left) + "px";
+    }
+
+    bell.addEventListener("click", (e) => {
+      e.stopPropagation();
+      dropdown.hidden = !dropdown.hidden;
+      if (!dropdown.hidden) {
+        positionDropdown();
+        loadList();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!dropdown.hidden && !dropdown.contains(e.target) && e.target !== bell) {
+        dropdown.hidden = true;
+      }
+    });
+
+    list.addEventListener("click", async (e) => {
+      const item = e.target.closest(".notif-item.unread");
+      if (!item) return;
+      try {
+        await api(`/api/notifications/${item.dataset.id}/read`, { method: "PATCH" });
+        item.classList.remove("unread");
+        refreshBadge();
+      } catch (_) {
+        /* leave as unread on failure */
+      }
+    });
+
+    markAllBtn.addEventListener("click", async () => {
+      try {
+        await api("/api/notifications/read-all", { method: "PATCH" });
+        list.querySelectorAll(".notif-item.unread").forEach((el) => el.classList.remove("unread"));
+        refreshBadge();
+      } catch (_) {
+        /* no-op */
+      }
+    });
+
+    refreshBadge();
+    setInterval(refreshBadge, 30000);
+  }
+
   // ================= CLIENT INTAKE =================
 
   function initIntakePanel() {
@@ -1168,6 +1269,7 @@
     if (user) {
       currentUser = user;
       renderUser(user);
+      initNotifications();
     }
   });
 })();

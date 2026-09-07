@@ -6,8 +6,10 @@ import com.mindcare.backend.messaging.dto.SendMessageRequest;
 import com.mindcare.backend.messaging.dto.StartConversationRequest;
 import com.mindcare.backend.model.Conversation;
 import com.mindcare.backend.model.Message;
+import com.mindcare.backend.model.NotificationType;
 import com.mindcare.backend.model.Role;
 import com.mindcare.backend.model.User;
+import com.mindcare.backend.notification.NotificationService;
 import com.mindcare.backend.repository.AppointmentRepository;
 import com.mindcare.backend.repository.ConversationRepository;
 import com.mindcare.backend.repository.MessageRepository;
@@ -45,17 +47,20 @@ public class ConversationController {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final AppointmentRepository appointmentRepository;
+    private final NotificationService notificationService;
 
     public ConversationController(
             ConversationRepository conversationRepository,
             MessageRepository messageRepository,
             UserRepository userRepository,
-            AppointmentRepository appointmentRepository
+            AppointmentRepository appointmentRepository,
+            NotificationService notificationService
     ) {
         this.conversationRepository = conversationRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.appointmentRepository = appointmentRepository;
+        this.notificationService = notificationService;
     }
 
     @PostMapping
@@ -125,6 +130,12 @@ public class ConversationController {
         Conversation conversation = ownConversationOrThrow(id, user);
         Message message = new Message(conversation, user, request.body());
         messageRepository.save(message);
+
+        User recipient = conversation.getClient().getId().equals(user.getId()) ? conversation.getTherapist() : conversation.getClient();
+        String preview = request.body().length() > 200 ? request.body().substring(0, 197) + "..." : request.body();
+        notificationService.notify(recipient, NotificationType.NEW_MESSAGE,
+                "New message from " + user.getFullName(), preview, conversation.getId());
+
         return MessageResponse.from(message);
     }
 

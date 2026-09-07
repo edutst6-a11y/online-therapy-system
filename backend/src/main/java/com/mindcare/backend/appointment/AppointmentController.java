@@ -7,8 +7,10 @@ import com.mindcare.backend.appointment.dto.SetMeetLinkRequest;
 import com.mindcare.backend.model.Appointment;
 import com.mindcare.backend.model.AppointmentStatus;
 import com.mindcare.backend.model.AvailabilitySlot;
+import com.mindcare.backend.model.NotificationType;
 import com.mindcare.backend.model.Role;
 import com.mindcare.backend.model.User;
+import com.mindcare.backend.notification.NotificationService;
 import com.mindcare.backend.repository.AppointmentRepository;
 import com.mindcare.backend.repository.AvailabilitySlotRepository;
 import jakarta.validation.Valid;
@@ -38,13 +40,16 @@ public class AppointmentController {
 
     private final AppointmentRepository appointmentRepository;
     private final AvailabilitySlotRepository availabilityRepository;
+    private final NotificationService notificationService;
 
     public AppointmentController(
             AppointmentRepository appointmentRepository,
-            AvailabilitySlotRepository availabilityRepository
+            AvailabilitySlotRepository availabilityRepository,
+            NotificationService notificationService
     ) {
         this.appointmentRepository = appointmentRepository;
         this.availabilityRepository = availabilityRepository;
+        this.notificationService = notificationService;
     }
 
     @PostMapping
@@ -64,6 +69,9 @@ public class AppointmentController {
         int durationMinutes = (int) Duration.between(slot.getStartTime(), slot.getEndTime()).toMinutes();
         Appointment appointment = new Appointment(client, slot.getTherapist(), slot.getStartTime(), durationMinutes, request.notes(), slot);
         appointmentRepository.save(appointment);
+
+        notificationService.notify(slot.getTherapist(), NotificationType.APPOINTMENT_REQUESTED,
+                "New session request", client.getFullName() + " requested a session with you.", appointment.getId());
 
         return AppointmentResponse.from(appointment);
     }
@@ -91,6 +99,8 @@ public class AppointmentController {
         Appointment appointment = findOrThrow(id);
         appointment.setStatus(AppointmentStatus.APPROVED);
         appointmentRepository.save(appointment);
+        notificationService.notify(appointment.getClient(), NotificationType.APPOINTMENT_APPROVED,
+                "Session approved", "Your session with " + appointment.getTherapist().getFullName() + " was approved.", appointment.getId());
         return AppointmentResponse.from(appointment);
     }
 
@@ -118,6 +128,8 @@ public class AppointmentController {
         freeSlot(appointment);
         appointment.setStatus(AppointmentStatus.DECLINED);
         appointmentRepository.save(appointment);
+        notificationService.notify(appointment.getClient(), NotificationType.APPOINTMENT_DECLINED,
+                "Session declined", "Your requested session with " + appointment.getTherapist().getFullName() + " was declined.", appointment.getId());
         return AppointmentResponse.from(appointment);
     }
 
@@ -129,6 +141,8 @@ public class AppointmentController {
         appointment.setMeetLink(null);
         appointment.setStatus(AppointmentStatus.RESCHEDULED);
         appointmentRepository.save(appointment);
+        notificationService.notify(appointment.getClient(), NotificationType.APPOINTMENT_RESCHEDULED,
+                "Session rescheduled", "Your session with " + appointment.getTherapist().getFullName() + " was rescheduled.", appointment.getId());
         return AppointmentResponse.from(appointment);
     }
 
@@ -142,6 +156,15 @@ public class AppointmentController {
         freeSlot(appointment);
         appointment.setStatus(AppointmentStatus.CANCELLED);
         appointmentRepository.save(appointment);
+        if (user.getRole() == Role.CLIENT) {
+            notificationService.notify(appointment.getTherapist(), NotificationType.APPOINTMENT_CANCELLED,
+                    "Session cancelled", appointment.getClient().getFullName() + " cancelled their session.", appointment.getId());
+        } else {
+            notificationService.notify(appointment.getClient(), NotificationType.APPOINTMENT_CANCELLED,
+                    "Session cancelled", "Your session with " + appointment.getTherapist().getFullName() + " was cancelled.", appointment.getId());
+            notificationService.notify(appointment.getTherapist(), NotificationType.APPOINTMENT_CANCELLED,
+                    "Session cancelled", "Your session with " + appointment.getClient().getFullName() + " was cancelled.", appointment.getId());
+        }
         return AppointmentResponse.from(appointment);
     }
 

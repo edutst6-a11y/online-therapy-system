@@ -1682,18 +1682,36 @@
     loadAuditLog();
 
     document.getElementById("user-table-body").addEventListener("click", async (e) => {
-      const btn = e.target.closest("[data-action='grant-super-admin'], [data-action='revoke-super-admin']");
+      const superAdminBtn = e.target.closest("[data-action='grant-super-admin'], [data-action='revoke-super-admin']");
+      const enabledBtn = e.target.closest("[data-action='enable-user'], [data-action='disable-user']");
+      const btn = superAdminBtn || enabledBtn;
       if (!btn) return;
       const id = btn.closest("[data-id]").dataset.id;
-      const grant = btn.dataset.action === "grant-super-admin";
-      if (!confirm(grant ? "Grant super-admin access to this account?" : "Revoke super-admin access from this account?")) return;
       btn.disabled = true;
       try {
-        await api(`/api/staff/${id}/super-admin`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ superAdmin: grant }),
-        });
+        if (superAdminBtn) {
+          const grant = btn.dataset.action === "grant-super-admin";
+          if (!confirm(grant ? "Grant super-admin access to this account?" : "Revoke super-admin access from this account?")) {
+            btn.disabled = false;
+            return;
+          }
+          await api(`/api/staff/${id}/super-admin`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ superAdmin: grant }),
+          });
+        } else {
+          const enable = btn.dataset.action === "enable-user";
+          if (!enable && !confirm("Disable this account? They won't be able to log in until re-enabled.")) {
+            btn.disabled = false;
+            return;
+          }
+          await api(`/api/staff/${id}/enabled`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: enable }),
+          });
+        }
         loadClinicOverview();
       } catch (err) {
         alert(err.message);
@@ -1759,14 +1777,25 @@
       body.innerHTML = "";
       users.forEach((u) => {
         const row = document.createElement("tr");
+        row.dataset.id = u.id;
+        const statusBits = [];
+        if (!u.enabled) statusBits.push('<span class="status-badge status-badge--declined">disabled</span>');
+        else if (u.locked) statusBits.push('<span class="status-badge status-badge--pending">locked</span>');
+        else statusBits.push('<span class="status-badge status-badge--approved">active</span>');
+        const canToggle = u.id !== currentUser.id;
         row.innerHTML =
           "<td>" + escapeHtml(u.fullName) + "</td>" +
           "<td>" + escapeHtml(u.email) + "</td>" +
           "<td>" + ROLE_LABEL[u.role] + "</td>" +
+          `<td data-id="${u.id}">${statusBits.join(" ")}${canToggle
+            ? (u.enabled
+                ? ' <button class="mini-button mini-button--danger" data-action="disable-user">Disable</button>'
+                : ' <button class="mini-button mini-button--accent" data-action="enable-user">Enable</button>')
+            : ""}</td>` +
           (currentUser.superAdmin
             ? `<td data-id="${u.id}">${u.superAdmin
                 ? '<button class="mini-button mini-button--danger" data-action="revoke-super-admin">Revoke</button>'
-                : (u.id !== currentUser.id ? '<button class="mini-button" data-action="grant-super-admin">Grant</button>' : "")}</td>`
+                : (canToggle ? '<button class="mini-button" data-action="grant-super-admin">Grant</button>' : "")}</td>`
             : "");
         body.appendChild(row);
       });

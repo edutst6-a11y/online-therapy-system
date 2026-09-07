@@ -18,12 +18,15 @@ public record UserResponse(
         Role role,
         Role trueRole,
         boolean superAdmin,
+        boolean enabled,
+        boolean locked,
         Instant createdAt
 ) {
     public static UserResponse from(User user) {
         return new UserResponse(
                 user.getId(), user.getFullName(), user.getEmail(),
-                user.effectiveRole(), user.getRole(), user.isSuperAdmin(), user.getCreatedAt()
+                user.effectiveRole(), user.getRole(), user.isSuperAdmin(),
+                user.isEnabled(), user.isLocked(), user.getCreatedAt()
         );
     }
 }

@@ -1,6 +1,7 @@
 package com.mindcare.backend.auth;
 
 import com.mindcare.backend.auth.dto.CreateStaffRequest;
+import com.mindcare.backend.auth.dto.SetEnabledRequest;
 import com.mindcare.backend.auth.dto.SetSuperAdminRequest;
 import com.mindcare.backend.auth.dto.UserResponse;
 import com.mindcare.backend.model.Role;
@@ -8,6 +9,7 @@ import com.mindcare.backend.model.User;
 import com.mindcare.backend.repository.UserRepository;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -81,6 +83,21 @@ public class StaffController {
     public UserResponse setSuperAdmin(@PathVariable UUID id, @RequestBody SetSuperAdminRequest request) {
         User target = userRepository.findById(id).orElseThrow(() -> new NoSuchElementException("User not found"));
         target.setSuperAdmin(request.superAdmin());
+        userRepository.save(target);
+        return UserResponse.from(target);
+    }
+
+    /** Disabling blocks login immediately; re-enabling also clears any lockout, in case that's why they were stuck out. */
+    @PatchMapping("/{id}/enabled")
+    public UserResponse setEnabled(@PathVariable UUID id, @RequestBody SetEnabledRequest request, @AuthenticationPrincipal User currentUser) {
+        if (id.equals(currentUser.getId()) && !request.enabled()) {
+            throw new AccessDeniedException("You can't disable your own account");
+        }
+        User target = userRepository.findById(id).orElseThrow(() -> new NoSuchElementException("User not found"));
+        target.setEnabled(request.enabled());
+        if (request.enabled()) {
+            target.unlock();
+        }
         userRepository.save(target);
         return UserResponse.from(target);
     }

@@ -66,17 +66,39 @@ public class AuthController {
         return AuthResponse.of(token, user);
     }
 
+    /**
+     * Deliberately NOT @Transactional: the failed-attempt counter must be saved and
+     * committed even on the branch that then throws — a wrapping transaction here
+     * would roll that write back along with the exception, silently defeating the
+     * lockout this method exists to enforce.
+     */
     @PostMapping("/api/auth/login")
     public AuthResponse login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
         String email = request.email().trim().toLowerCase();
         String ip = clientIp(httpRequest);
 
         User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+
+        if (user != null && user.isLocked()) {
+            auditService.record(user, email, "LOGIN", "User", user.getId().toString(), ip, AuditResult.FAILURE, "Account locked");
+            throw new AccountLockedException("Too many failed attempts. Try again in a few minutes.");
+        }
+
         if (user == null || !user.isEnabled() || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
-            auditService.record(null, email, "LOGIN", "User", null, ip, AuditResult.FAILURE, "Invalid credentials");
+            String detail = "Invalid credentials";
+            if (user != null) {
+                boolean justLocked = user.registerFailedLogin();
+                userRepository.save(user);
+                if (justLocked) {
+                    detail = "Account locked after repeated failures";
+                }
+            }
+            auditService.record(user, email, "LOGIN", "User", user != null ? user.getId().toString() : null, ip, AuditResult.FAILURE, detail);
             throw new InvalidCredentialsException();
         }
 
+        user.registerSuccessfulLogin();
+        userRepository.save(user);
         auditService.record(user, email, "LOGIN", "User", user.getId().toString(), ip, AuditResult.SUCCESS, null);
         String token = jwtService.issueToken(user.getId());
         return AuthResponse.of(token, user);

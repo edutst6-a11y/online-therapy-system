@@ -48,6 +48,12 @@ public class User {
     @Column(length = 20)
     private Role activeRole;
 
+    @Column(nullable = false, columnDefinition = "integer not null default 0")
+    private int failedLoginAttempts = 0;
+
+    /** Set once failedLoginAttempts crosses the threshold; login is refused until this passes. */
+    private Instant lockedUntil;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -140,5 +146,38 @@ public class User {
     /** The role this account is currently operating as — a super admin's activeRole if set, else their real role. */
     public Role effectiveRole() {
         return superAdmin && activeRole != null ? activeRole : role;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public Instant getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public boolean isLocked() {
+        return lockedUntil != null && lockedUntil.isAfter(Instant.now());
+    }
+
+    /** Returns true if this failure just tripped the lock (5 consecutive failures). */
+    public boolean registerFailedLogin() {
+        failedLoginAttempts++;
+        if (failedLoginAttempts >= 5) {
+            lockedUntil = Instant.now().plusSeconds(15 * 60);
+            failedLoginAttempts = 0;
+            return true;
+        }
+        return false;
+    }
+
+    public void registerSuccessfulLogin() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
+    }
+
+    public void unlock() {
+        failedLoginAttempts = 0;
+        lockedUntil = null;
     }
 }

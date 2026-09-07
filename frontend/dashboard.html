@@ -207,6 +207,33 @@
       <div id="note-form-wrap"></div>
     </div>
 
+    <!-- THERAPIST: treatment plans -->
+    <div class="dashboard-panel" id="treatment-plan-panel" hidden>
+      <div>
+        <h2>Treatment plan</h2>
+        <label class="field">
+          <span>Client</span>
+          <select id="plan-client-select">
+            <option value="">Choose a client…</option>
+          </select>
+        </label>
+        <form class="auth-form" id="new-plan-form" novalidate style="margin-top:10px">
+          <label class="field">
+            <span>Review date (optional)</span>
+            <input type="date" name="reviewDate">
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button" id="new-plan-btn" disabled>
+            <span>Start Treatment Plan</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
+      </div>
+      <div id="plan-detail-wrap">
+        <p class="empty-note">Choose a client to see their plan.</p>
+      </div>
+    </div>
+
     <!-- RECEPTIONIST: triage incoming requests -->
     <div class="dashboard-panel" id="receptionist-panel" hidden>
       <div>

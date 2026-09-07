@@ -138,8 +138,10 @@
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
       document.getElementById("clinical-notes-panel").hidden = false;
+      document.getElementById("treatment-plan-panel").hidden = false;
       initTherapistPanel();
       initClinicalNotes();
+      initTreatmentPlans();
     } else if (user.role === "RECEPTIONIST") {
       document.getElementById("receptionist-panel").hidden = false;
       initReceptionistPanel();
@@ -527,7 +529,7 @@
     appointments.forEach((a) => seen.set(a.clientId, a.clientName));
     const optionsHtml = '<option value="">Choose a client…</option>' +
       [...seen.entries()].map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("");
-    ["assign-client-select", "notes-client-select"].forEach((elId) => {
+    ["assign-client-select", "notes-client-select", "plan-client-select"].forEach((elId) => {
       const el = document.getElementById(elId);
       if (el) el.innerHTML = optionsHtml;
     });
@@ -707,6 +709,148 @@
         }
         wrap.innerHTML = "";
         loadNotesForClient(clientId);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        button.disabled = false;
+      }
+    });
+  }
+
+  // ================= TREATMENT PLANS =================
+
+  function initTreatmentPlans() {
+    const select = document.getElementById("plan-client-select");
+    const form = document.getElementById("new-plan-form");
+    const errorEl = form.querySelector("[data-error]");
+    let selectedClientId = null;
+
+    select.addEventListener("change", () => {
+      selectedClientId = select.value || null;
+      document.getElementById("new-plan-btn").disabled = true;
+      if (selectedClientId) {
+        loadPlanForClient(selectedClientId);
+      } else {
+        document.getElementById("plan-detail-wrap").innerHTML = '<p class="empty-note">Choose a client to see their plan.</p>';
+      }
+    });
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      if (!selectedClientId) return;
+      const data = new FormData(form);
+      const button = document.getElementById("new-plan-btn");
+      button.disabled = true;
+      try {
+        const plan = await api("/api/treatment-plans", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: selectedClientId,
+            reviewDate: data.get("reviewDate") || null,
+            goals: [],
+          }),
+        });
+        renderPlanDetail(plan);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+        button.disabled = false;
+      }
+    });
+  }
+
+  async function loadPlanForClient(clientId) {
+    const wrap = document.getElementById("plan-detail-wrap");
+    const newPlanBtn = document.getElementById("new-plan-btn");
+    wrap.innerHTML = '<p class="empty-note">Loading…</p>';
+    try {
+      const plans = await api(`/api/treatment-plans/client/${clientId}`);
+      if (!plans.length) {
+        wrap.innerHTML = '<p class="empty-note">No treatment plan yet — start one on the left.</p>';
+        newPlanBtn.disabled = false;
+        return;
+      }
+      newPlanBtn.disabled = true;
+      renderPlanDetail(plans[0]);
+    } catch (_) {
+      wrap.innerHTML = '<p class="empty-note">Could not load treatment plan.</p>';
+    }
+  }
+
+  function goalStatusClass(status) {
+    if (status === "ACHIEVED") return "status-badge--approved";
+    if (status === "DISCONTINUED") return "status-badge--cancelled";
+    return "status-badge--pending";
+  }
+
+  function renderPlanDetail(plan) {
+    const wrap = document.getElementById("plan-detail-wrap");
+    wrap.innerHTML = `
+      <h2>Plan for ${escapeHtml(plan.clientName)}</h2>
+      <p class="hero-sub" style="margin-bottom:10px">
+        Responsible: ${escapeHtml(plan.clinicianName)}${plan.reviewDate ? " · Review " + plan.reviewDate : ""}
+        <span class="status-badge ${goalStatusClass(plan.status)}" style="margin-left:8px">${plan.status.toLowerCase()}</span>
+      </p>
+      <div class="appointment-list" id="goal-list">
+        ${plan.goals.map((g) => `
+          <div class="appointment-card" data-goal-id="${g.id}">
+            <div class="row">
+              <span class="who">${escapeHtml(g.description)}</span>
+              <span class="status-badge ${goalStatusClass(g.status)}">${g.status.toLowerCase()}</span>
+            </div>
+            ${g.interventions ? `<div class="when">${escapeHtml(g.interventions)}</div>` : ""}
+            <div class="actions">
+              ${g.status !== "ACHIEVED" ? '<button class="mini-button mini-button--accent" data-action="achieve">Mark Achieved</button>' : ""}
+              ${g.status !== "DISCONTINUED" ? '<button class="mini-button mini-button--danger" data-action="discontinue">Discontinue</button>' : ""}
+            </div>
+          </div>`).join("")}
+      </div>
+      <form class="auth-form" id="add-goal-form" novalidate style="margin-top:14px">
+        <label class="field"><span>New goal</span><input type="text" name="description" required></label>
+        <label class="field"><span>Interventions (optional)</span><input type="text" name="interventions"></label>
+        <p class="form-error" data-error hidden></p>
+        <button type="submit" class="mini-button mini-button--accent">Add Goal</button>
+      </form>`;
+
+    document.getElementById("goal-list").addEventListener("click", async (e) => {
+      const card = e.target.closest("[data-goal-id]");
+      if (!card) return;
+      const goalId = card.dataset.goalId;
+      let status = null;
+      if (e.target.closest("[data-action='achieve']")) status = "ACHIEVED";
+      else if (e.target.closest("[data-action='discontinue']")) status = "DISCONTINUED";
+      if (!status) return;
+      e.target.disabled = true;
+      try {
+        const updated = await api(`/api/treatment-plans/goals/${goalId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        renderPlanDetail(updated);
+      } catch (err) {
+        alert(err.message);
+        e.target.disabled = false;
+      }
+    });
+
+    const addGoalForm = document.getElementById("add-goal-form");
+    addGoalForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const errorEl = addGoalForm.querySelector("[data-error]");
+      errorEl.hidden = true;
+      const data = new FormData(addGoalForm);
+      const button = addGoalForm.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        const updated = await api(`/api/treatment-plans/${plan.id}/goals`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description: data.get("description"), interventions: data.get("interventions") || null }),
+        });
+        renderPlanDetail(updated);
       } catch (err) {
         errorEl.textContent = err.message;
         errorEl.hidden = false;

@@ -130,8 +130,10 @@
 
     if (user.role === "CLIENT") {
       document.getElementById("client-intake-panel").hidden = false;
+      document.getElementById("client-assessments-panel").hidden = false;
       document.getElementById("client-panel").hidden = false;
       initIntakePanel();
+      initClientAssessments();
       initClientPanel();
     } else if (user.role === "THERAPIST") {
       document.getElementById("therapist-panel").hidden = false;
@@ -192,6 +194,98 @@
         errorEl.textContent = err.message;
         errorEl.hidden = false;
       } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  // ================= CLIENT ASSESSMENTS =================
+
+  function initClientAssessments() {
+    const list = document.getElementById("client-assessment-list");
+    list.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-action='take']");
+      if (btn) openAssessmentForm(btn.closest("[data-id]").dataset.id);
+    });
+    loadClientAssessments();
+  }
+
+  async function loadClientAssessments() {
+    const list = document.getElementById("client-assessment-list");
+    try {
+      const items = await api("/api/assessment-responses/mine");
+      renderList(list, items, "Nothing assigned yet.", (item) => `
+        <div class="appointment-card" data-id="${item.id}">
+          <div class="row">
+            <span class="who">${escapeHtml(item.templateName)}</span>
+            <span class="status-badge ${item.completedAt ? "status-badge--approved" : "status-badge--pending"}">
+              ${item.completedAt ? "completed" : "pending"}
+            </span>
+          </div>
+          <div class="when">Assigned by ${escapeHtml(item.assignedByName)} · ${formatWhen(item.assignedAt)}</div>
+          ${item.completedAt
+            ? `<div class="when">Score ${item.totalScore} — ${escapeHtml(item.interpretation)}</div>`
+            : `<div class="actions"><button class="mini-button mini-button--accent" data-action="take">Take Assessment</button></div>`}
+        </div>`);
+    } catch (_) {
+      list.innerHTML = '<p class="empty-note">Could not load assessments.</p>';
+    }
+  }
+
+  async function openAssessmentForm(responseId) {
+    const wrap = document.getElementById("assessment-take-wrap");
+    wrap.innerHTML = '<p class="empty-note">Loading…</p>';
+    let detail;
+    try {
+      detail = await api(`/api/assessment-responses/${responseId}`);
+    } catch (_) {
+      wrap.innerHTML = '<p class="empty-note">Could not load this assessment.</p>';
+      return;
+    }
+
+    wrap.innerHTML = `
+      <h2>${escapeHtml(detail.templateName)}</h2>
+      <p class="hero-sub" style="margin-bottom:14px">${escapeHtml(detail.templateDescription || "")}</p>
+      <form class="auth-form" id="take-assessment-form" novalidate>
+        ${detail.questions.map((q, i) => `
+          <label class="field">
+            <span>${i + 1}. ${escapeHtml(q.questionText)}</span>
+            <select name="q_${q.id}" required>
+              <option value="">Choose…</option>
+              ${Array.from({ length: q.maxScore - q.minScore + 1 }, (_, n) => q.minScore + n)
+                .map((v) => `<option value="${v}">${v}</option>`).join("")}
+            </select>
+          </label>`).join("")}
+        <p class="form-error" data-error hidden></p>
+        <button type="submit" class="pill-button">
+          <span>Submit</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </form>`;
+
+    const form = document.getElementById("take-assessment-form");
+    const errorEl = form.querySelector("[data-error]");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const data = new FormData(form);
+      const answers = detail.questions.map((q) => ({
+        questionId: q.id,
+        score: Number(data.get(`q_${q.id}`)),
+      }));
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        await api(`/api/assessment-responses/${responseId}/submit`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ answers }),
+        });
+        wrap.innerHTML = "";
+        loadClientAssessments();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
         button.disabled = false;
       }
     });
@@ -386,6 +480,52 @@
 
     loadTherapistSlots();
     loadTherapistAppointments();
+    initAssignAssessmentForm();
+  }
+
+  function initAssignAssessmentForm() {
+    const form = document.getElementById("assign-assessment-form");
+    const templateSelect = document.getElementById("assign-template-select");
+    const errorEl = form.querySelector("[data-error]");
+
+    api("/api/assessment-templates")
+      .then((templates) => {
+        templateSelect.innerHTML = '<option value="">Choose an assessment…</option>' +
+          templates.map((t) => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join("");
+      })
+      .catch(() => {});
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorEl.hidden = true;
+      const data = new FormData(form);
+      const button = form.querySelector("button[type=submit]");
+      button.disabled = true;
+      try {
+        await api("/api/assessment-responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId: data.get("clientId"),
+            templateId: data.get("templateId"),
+          }),
+        });
+        form.reset();
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.hidden = false;
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
+  function populateClientOptions(appointments) {
+    const select = document.getElementById("assign-client-select");
+    const seen = new Map();
+    appointments.forEach((a) => seen.set(a.clientId, a.clientName));
+    select.innerHTML = '<option value="">Choose a client…</option>' +
+      [...seen.entries()].map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join("");
   }
 
   async function loadTherapistSlots() {
@@ -409,6 +549,7 @@
     const container = document.getElementById("therapist-appointments");
     try {
       const appts = await api("/api/appointments/mine");
+      populateClientOptions(appts);
       renderList(container, appts, "No sessions booked with you yet.", (appt) => appointmentCard(appt, {
         personLabel: "Client",
         personName: appt.clientName,

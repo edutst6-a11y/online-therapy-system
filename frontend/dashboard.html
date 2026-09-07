@@ -90,6 +90,17 @@
       </div>
     </div>
 
+    <!-- CLIENT: assessments assigned by care team -->
+    <div class="dashboard-panel" id="client-assessments-panel" hidden>
+      <div>
+        <h2>Your assessments</h2>
+        <div class="appointment-list" id="client-assessment-list">
+          <p class="empty-note">Loading…</p>
+        </div>
+      </div>
+      <div id="assessment-take-wrap"></div>
+    </div>
+
     <!-- CLIENT: book a session, track your own sessions -->
     <div class="dashboard-panel" id="client-panel" hidden>
       <div>
@@ -155,6 +166,26 @@
         <div class="appointment-list" id="therapist-appointments">
           <p class="empty-note">Loading…</p>
         </div>
+        <h2 style="margin-top:22px">Assign an assessment</h2>
+        <form class="auth-form" id="assign-assessment-form" novalidate>
+          <label class="field">
+            <span>Client</span>
+            <select name="clientId" id="assign-client-select" required>
+              <option value="">Choose a client…</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Assessment</span>
+            <select name="templateId" id="assign-template-select" required>
+              <option value="">Choose an assessment…</option>
+            </select>
+          </label>
+          <p class="form-error" data-error hidden></p>
+          <button type="submit" class="pill-button">
+            <span>Assign</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </button>
+        </form>
       </div>
     </div>
 

@@ -20,11 +20,6 @@ public class GlobalExceptionHandler {
         return errorResponse(HttpStatus.NOT_FOUND, ex.getMessage());
     }
 
-    @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalState(IllegalStateException ex) {
-        return errorResponse(HttpStatus.BAD_GATEWAY, ex.getMessage());
-    }
-
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidCredentials(InvalidCredentialsException ex) {
         return errorResponse(HttpStatus.UNAUTHORIZED, ex.getMessage());

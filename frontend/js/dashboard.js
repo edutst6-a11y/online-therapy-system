@@ -37,14 +37,18 @@
   const ROLE_COPY = {
     CLIENT: "Book a session with a therapist below, or check the status of one you've already requested.",
     THERAPIST: "Publish times you're free, then track the sessions booked against them.",
+    CLINICAL_SUPERVISOR: "Case review and clinical oversight tools are coming soon for this role.",
     RECEPTIONIST: "Incoming requests need your approval, a reschedule, or a decline.",
+    FINANCE: "Billing, invoicing, and payment tools are coming soon for this role.",
     MAINTENANCE: "You have clinic-wide visibility: every user, every appointment, and the ability to provision new staff accounts below.",
   };
 
   const ROLE_LABEL = {
     CLIENT: "Client",
     THERAPIST: "Therapist",
+    CLINICAL_SUPERVISOR: "Clinical Supervisor",
     RECEPTIONIST: "Receptionist",
+    FINANCE: "Finance",
     MAINTENANCE: "Maintenance",
   };
 
@@ -501,7 +505,7 @@
 
       const statRow = document.getElementById("stat-row");
       statRow.innerHTML = "";
-      ["CLIENT", "THERAPIST", "RECEPTIONIST", "MAINTENANCE"].forEach((role) => {
+      ["CLIENT", "THERAPIST", "CLINICAL_SUPERVISOR", "RECEPTIONIST", "FINANCE", "MAINTENANCE"].forEach((role) => {
         const tile = document.createElement("div");
         tile.className = "stat-tile";
         tile.innerHTML =

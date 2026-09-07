@@ -22,14 +22,16 @@ import java.util.Set;
 
 /**
  * Account provisioning reachable only by an authenticated MAINTENANCE user.
- * There is deliberately no public path to any of these three roles.
+ * There is deliberately no public path to any of these roles.
  */
 @RestController
 @RequestMapping("/api/staff")
 @PreAuthorize("hasRole('MAINTENANCE')")
 public class StaffController {
 
-    private static final Set<Role> PROVISIONABLE_ROLES = Set.of(Role.THERAPIST, Role.RECEPTIONIST, Role.MAINTENANCE);
+    private static final Set<Role> PROVISIONABLE_ROLES = Set.of(
+            Role.THERAPIST, Role.CLINICAL_SUPERVISOR, Role.RECEPTIONIST, Role.FINANCE, Role.MAINTENANCE
+    );
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;

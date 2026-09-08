@@ -181,10 +181,27 @@ URL) before concluding something's broken.
 
 ## Disaster recovery
 
-- **Database.** Production Postgres is Aiven-hosted. Confirm directly in the
-  Aiven console which backup/point-in-time-recovery window the current plan
-  includes — this hasn't been independently verified from this environment
-  and shouldn't be assumed.
+- **Database.** Production Postgres is Aiven-hosted, on Aiven's **free plan**
+  (`pg-20bb9a7e`, 1 CPU / 1GB RAM / 1GB storage) — a genuinely free tier, not
+  the account's separate 28-day/$50 trial credit (that credit only applies
+  to non-free-plan services, so it isn't a countdown against this database).
+  Confirmed directly in the Aiven console: daily automated backups are
+  running, with point-in-time recovery available in between them. As of this
+  check the service was only 2 days old, so only ~2-3 days of backup history
+  existed to inspect — the actual retention *cap* on the free plan wasn't
+  independently confirmed beyond that. Two real gaps worth acting on
+  deliberately, not silently:
+  - **The free plan auto-powers-off during inactivity** (Aiven's own upgrade
+    prompt says so directly) — separate from and in addition to Render's
+    free-tier backend spin-down. Both halves of the stack can go cold
+    independently, which affects real availability, not just cold-start
+    latency.
+  - **1GB storage is a hard ceiling** — fine today, but worth revisiting as
+    client documents (5MB cap each) and clinical records accumulate.
+  Aiven offers a $5/month tier that removes the inactivity power-off and
+  adds basic support; whether that trade-off is worth it for a live system
+  holding real client health data is a call for whoever owns the budget,
+  not something to flip silently.
 - **Losing all Maintenance access.** If every Maintenance account is somehow
   locked out or deleted, `POST /api/bootstrap/maintenance` creates a fresh
   one — but only while zero Maintenance accounts exist in the database

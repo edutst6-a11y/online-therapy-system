@@ -24,7 +24,7 @@ body {
   font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   min-height: 100vh;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: clamp(16px, 4vw, 48px);
   overflow-x: hidden;

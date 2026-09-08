@@ -180,7 +180,7 @@ button { font-family: inherit; cursor: pointer; }
 
 .stage {
   position: relative;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
   padding: clamp(16px, 2.2vw, 28px);
   display: flex;
   flex-direction: column;
@@ -1005,6 +1005,11 @@ button { font-family: inherit; cursor: pointer; }
     flex-direction: column;
     border-radius: 22px;
     min-height: 96vh;
+  }
+  /* .browser-card's main axis is now vertical, so .stage must not shrink here —
+     that's what stops hero copy getting squeezed below its needed height. */
+  .stage {
+    flex-shrink: 0;
   }
   .side-rail {
     flex-direction: row;

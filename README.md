@@ -45,6 +45,55 @@ the flag on another account (`PATCH /api/staff/{id}/super-admin`), and
 revoking it immediately clears whatever active role they'd switched into —
 proven by `SuperAdminGrantTest`.
 
+## Using MindCare, role by role
+
+A walkthrough of what each role actually does day to day, once logged in at
+the live site.
+
+**As a Client:** Fill in your intake form once (Your Intake panel) — it asks
+for basics like emergency contact and why you're seeking care, and requires
+ticking consent before it'll save. Book a session from the booking panel by
+picking a therapist and one of their open times; it starts as *Pending*
+until Reception approves it. Once approved, a **Join Session** button
+appears on that appointment as soon as your therapist has posted a Meet
+link. You can message your therapist, see any documents shared with you,
+and view your invoices/receipts under Billing, all from the same dashboard.
+
+**As a Therapist:** Publish the times you're free in the Availability panel
+— clients can only book against times you've published. Once Reception
+approves a booking, start a Google Meet call yourself
+(`meet.google.com/new`) and paste the link into that appointment so your
+client can join. After a session, mark it Complete. Clinical Notes: write a
+draft, and once you sign it, it's permanently locked — to correct a signed
+note later, use Amend, which opens a new draft linked to the original
+rather than editing it. Treatment Plans let you track goals per client over
+time, separate from individual session notes.
+
+**As a Receptionist:** Your dashboard is the incoming-requests queue —
+approve, decline, or reschedule each pending booking. You intentionally
+cannot see clinical notes or intake answers; you get names, times, and
+status only.
+
+**As Finance:** Build an invoice against a client (with line items and an
+optional discount — the total is always computed server-side, never trust a
+number typed into the browser). Record payments against it as they come in;
+the status moves from Unpaid → Partially Paid → Paid automatically as
+payments are recorded, and each payment issues its own numbered receipt.
+Reports give you totals invoiced/collected/outstanding.
+
+**As Maintenance:** You see every user and every appointment clinic-wide.
+Provision new staff accounts (this is the only way anyone gets a role other
+than Client), lock/unlock or enable/disable accounts, and review the audit
+log — a record of who did what, when, from where, and whether it succeeded,
+kept for every state-changing action in the system.
+
+**As a super admin** (currently one account, per the project's original
+brief): a role switcher appears in the nav letting you act as any role
+without a separate login — useful for QA and for stepping in wherever
+staffing is thin. Granting this to someone else is done from the
+Maintenance user table's Grant/Revoke control, and only an existing super
+admin can grant it further.
+
 ## Video sessions
 
 There's no backend Google Calendar/Meet integration. Once Reception or
